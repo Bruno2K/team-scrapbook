@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Team {
+  RED
+  BLU
+}
+
+enum TF2Class {
+  Scout
+  Soldier
+  Pyro
+  Demoman
+  Heavy
+  Engineer
+  Medic
+  Sniper
+  Spy
+}
+
+enum FeedType {
+  post
+  achievement
+  community
+  scrap
+}
+
+enum ScrapReaction {
+  headshot
+  heal
+  burn
+  backstab
+}
+
+model User {
+  id             String        @id @default(cuid())
+  name           String
+  nickname       String        @unique
+  passwordHash   String
+  team           Team          @default(RED)
+  mainClass      TF2Class      @default(Scout)
+  level          Int           @default(1)
+  avatar         String?
+  online         Boolean       @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  feedItems      FeedItem[]
+  scrapsSent     ScrapMessage[] @relation("ScrapsSent")
+  scrapsReceived ScrapMessage[] @relation("ScrapsReceived")
+}
+
+model FeedItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  type      FeedType @default(post)
+  createdAt DateTime @default(now())
+}
+
+model ScrapMessage {
+  id        String        @id @default(cuid())
+  fromUserId String
+  from       User          @relation("ScrapsSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  to         User          @relation("ScrapsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  content    String
+  reaction   ScrapReaction?
+  createdAt  DateTime      @default(now())
+}
+
+model Community {
+  id            String    @id @default(cuid())
+  name          String
+  description   String
+  memberCount   Int       @default(0)
+  dominantClass TF2Class?
+  team          Team?
+  createdAt     DateTime  @default(now())
+}

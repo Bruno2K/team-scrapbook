@@ -1,11 +1,11 @@
 import { FriendCard } from "@/components/friends/FriendCard";
 import { CommunityCard } from "@/components/community/CommunityCard";
-import { MOCK_USERS, MOCK_COMMUNITIES } from "@/lib/mockData";
+import { useFriends } from "@/hooks/useFriends";
+import { useCommunities } from "@/hooks/useCommunities";
 
 export function SidebarRight() {
-  const friends = MOCK_USERS.slice(1); // everyone except current user
-  const onlineFriends = friends.filter((f) => f.online);
-  const offlineFriends = friends.filter((f) => !f.online);
+  const { onlineFriends, offlineFriends } = useFriends();
+  const { communities } = useCommunities();
 
   return (
     <>
@@ -41,7 +41,7 @@ export function SidebarRight() {
         <h3 className="font-heading text-xs text-muted-foreground uppercase tracking-widest px-1 flex items-center gap-2">
           🏰 Comunidades
         </h3>
-        {MOCK_COMMUNITIES.slice(0, 4).map((c) => (
+        {communities.slice(0, 4).map((c) => (
           <CommunityCard key={c.id} community={c} />
         ))}
         <button className="w-full text-[10px] font-bold uppercase text-accent hover:text-tf-yellow-light transition-colors text-center py-1">

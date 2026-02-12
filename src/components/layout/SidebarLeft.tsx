@@ -1,10 +1,11 @@
 import { useUser } from "@/hooks/useUser";
+import { useScraps } from "@/hooks/useScraps";
 import { ProfileCard } from "@/components/profile/ProfileCard";
 import { ScrapMessage } from "@/components/scrapbook/ScrapMessage";
-import { MOCK_SCRAPS } from "@/lib/mockData";
 
 export function SidebarLeft() {
   const { user } = useUser();
+  const { scraps } = useScraps();
 
   return (
     <>
@@ -14,10 +15,10 @@ export function SidebarLeft() {
       <div className="tf-card p-4 space-y-3">
         <h3 className="font-heading text-xs text-muted-foreground uppercase tracking-widest flex items-center gap-2">
           📝 Recados
-          <span className="ml-auto text-[10px] text-accent font-bold">{MOCK_SCRAPS.length}</span>
+          <span className="ml-auto text-[10px] text-accent font-bold">{scraps.length}</span>
         </h3>
         <div className="space-y-2">
-          {MOCK_SCRAPS.slice(0, 3).map((scrap) => (
+          {scraps.slice(0, 3).map((scrap) => (
             <ScrapMessage key={scrap.id} scrap={scrap} />
           ))}
         </div>

@@ -50,6 +50,21 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## API (Backend) e documentação Swagger
+
+O backend é uma API REST em Node.js (Express + Prisma + MVC). A documentação OpenAPI/Swagger está disponível quando o servidor está rodando:
+
+- **Swagger UI:** [http://localhost:3000/api-docs](http://localhost:3000/api-docs) — interface interativa para explorar e testar os endpoints.
+- **Especificação bruta (JSON):** [http://localhost:3000/api-docs.json](http://localhost:3000/api-docs.json)
+
+Para subir apenas o backend:
+
+```sh
+npm run dev:api
+```
+
+Endpoints documentados: health check (`GET /health`), registro e login (`POST /auth/register`, `POST /auth/login`), usuário atual (`GET /users/me` com Bearer token). Novos recursos (feed, scraps, comunidades) serão adicionados ao Swagger conforme forem implementados.
+
 ## What technologies are used for this project?
 
 This project is built with:
@@ -59,6 +74,7 @@ This project is built with:
 - React
 - shadcn-ui
 - Tailwind CSS
+- Backend: Express, Prisma, Swagger (OpenAPI 3.0)
 
 ## How can I deploy this project?
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 
 interface MainLayoutProps {
   sidebarLeft: ReactNode;
@@ -23,13 +24,14 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
           </div>
           <nav className="flex items-center gap-1">
             {[
-              { label: "Feed", icon: "📋", active: true },
-              { label: "Scraps", icon: "📝", active: false },
-              { label: "Comunidades", icon: "🏰", active: false },
+              { label: "Feed", icon: "📋", to: "/", active: true },
+              { label: "Scraps", icon: "📝", to: "#", active: false },
+              { label: "Comunidades", icon: "🏰", to: "#", active: false },
             ].map((item) => (
-              <button
+              <Link
                 key={item.label}
-                className={`px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider transition-all
+                to={item.to}
+                className={`px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider transition-all inline-flex items-center
                   ${item.active
                     ? "bg-accent text-accent-foreground tf-shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -37,8 +39,14 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
               >
                 <span className="mr-1">{item.icon}</span>
                 <span className="hidden sm:inline">{item.label}</span>
-              </button>
+              </Link>
             ))}
+            <Link
+              to="/login"
+              className="px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted transition-all border border-border hover:border-accent/50"
+            >
+              🔐 Entrar
+            </Link>
           </nav>
         </div>
       </header>
