@@ -1,13 +1,39 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { MainLayout } from "@/components/layout/MainLayout";
+import { SidebarLeft } from "@/components/layout/SidebarLeft";
+import { SidebarRight } from "@/components/layout/SidebarRight";
+import { FeedCard } from "@/components/feed/FeedCard";
+import { useFeed } from "@/hooks/useFeed";
 
 const Index = () => {
+  const { feed } = useFeed();
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
+    <MainLayout
+      sidebarLeft={<SidebarLeft />}
+      sidebarRight={<SidebarRight />}
+    >
+      {/* Post input */}
+      <div className="tf-card p-4 space-y-3">
+        <h3 className="font-heading text-xs text-muted-foreground uppercase tracking-widest">
+          📡 Transmissão de Campo
+        </h3>
+        <textarea
+          placeholder="Relate sua última batalha, soldado..."
+          className="w-full bg-muted border-2 border-border rounded p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:border-accent transition-colors"
+          rows={3}
+        />
+        <div className="flex justify-end">
+          <button className="px-4 py-2 bg-accent text-accent-foreground font-heading text-xs uppercase tracking-wider rounded tf-shadow-sm hover:brightness-110 transition-all">
+            🔥 Enviar Intel
+          </button>
+        </div>
       </div>
-    </div>
+
+      {/* Feed */}
+      {feed.map((item) => (
+        <FeedCard key={item.id} item={item} />
+      ))}
+    </MainLayout>
   );
 };
 
