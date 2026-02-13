@@ -7,6 +7,22 @@ export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+/** Decode JWT payload to get current user id (for UI only; backend verifies). */
+export function getCurrentUserId(): string | null {
+  const token = getStoredToken();
+  if (!token) return null;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const raw = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(raw);
+    const payload = JSON.parse(json) as { userId?: string; sub?: string };
+    return payload.userId ?? payload.sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function setStoredToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
 }

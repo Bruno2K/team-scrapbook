@@ -1,11 +1,117 @@
 import { prisma } from "../db/client.js";
 import type { TF2Class, Team } from "@prisma/client";
+import type { User } from "@prisma/client";
+import { listFriends } from "./userService.js";
 
-export async function listCommunities(limit = 50) {
-  return prisma.community.findMany({
+export interface ListCommunitiesOptions {
+  userId?: string;
+  search?: string;
+  limit?: number;
+}
+
+export interface CommunityWithMeta {
+  id: string;
+  name: string;
+  description: string;
+  memberCount: number;
+  dominantClass: TF2Class | null;
+  team: Team | null;
+  ownerId: string | null;
+  isMember: boolean;
+  friendsInCommunity: User[];
+}
+
+/** Get friends of userId who are members of communityId. */
+export async function getFriendsInCommunity(userId: string, communityId: string): Promise<User[]> {
+  const friendIds = new Set((await listFriends(userId)).map((u) => u.id));
+  const members = await listCommunityMembers(communityId);
+  return members.filter((m) => friendIds.has(m.userId)).map((m) => m.user);
+}
+
+export async function listCommunities(limit?: number): Promise<Awaited<ReturnType<typeof prisma.community.findMany>>>;
+export async function listCommunities(options: ListCommunitiesOptions): Promise<CommunityWithMeta[]>;
+export async function listCommunities(
+  limitOrOptions: number | ListCommunitiesOptions = 50
+): Promise<CommunityWithMeta[] | Awaited<ReturnType<typeof prisma.community.findMany>>> {
+  const options: ListCommunitiesOptions = typeof limitOrOptions === "object" ? limitOrOptions : { limit: limitOrOptions ?? 50 };
+  const { userId, search, limit = 50 } = options;
+
+  const searchTerm = search?.trim();
+  const where = searchTerm
+    ? {
+        OR: [
+          { name: { contains: searchTerm } },
+          { description: { contains: searchTerm } },
+        ],
+      }
+    : undefined;
+
+  const communities = await prisma.community.findMany({
+    where,
     orderBy: { memberCount: "desc" },
     take: limit,
   });
+
+  if (!userId) {
+    return communities;
+  }
+
+  const result: CommunityWithMeta[] = await Promise.all(
+    communities.map(async (c) => {
+      const [membership, friendsInCommunity] = await Promise.all([
+        getMember(userId, c.id),
+        getFriendsInCommunity(userId, c.id),
+      ]);
+      return {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        memberCount: c.memberCount,
+        dominantClass: c.dominantClass,
+        team: c.team,
+        ownerId: c.ownerId,
+        isMember: !!membership,
+        friendsInCommunity,
+      };
+    })
+  );
+  return result;
+}
+
+/** Communities where the user is a member (e.g. for sidebar). */
+export async function listCommunitiesWhereMember(userId: string, limit = 50): Promise<CommunityWithMeta[]> {
+  const memberRows = await prisma.communityMember.findMany({
+    where: { userId },
+    include: { community: true },
+    orderBy: { joinedAt: "asc" },
+    take: limit,
+  });
+  const communities = memberRows.map((r) => r.community);
+  const result: CommunityWithMeta[] = await Promise.all(
+    communities.map(async (c) => {
+      const friendsInCommunity = await getFriendsInCommunity(userId, c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        memberCount: c.memberCount,
+        dominantClass: c.dominantClass,
+        team: c.team,
+        ownerId: c.ownerId,
+        isMember: true,
+        friendsInCommunity,
+      };
+    })
+  );
+  return result;
+}
+
+/** Recommended: communities where user is NOT a member but has friends in them. Ordered by friend count. */
+export async function listRecommendedCommunities(userId: string, limit = 20): Promise<CommunityWithMeta[]> {
+  const all = await listCommunities({ userId, limit: 200 });
+  const notMember = all.filter((c) => !c.isMember && c.friendsInCommunity.length > 0);
+  notMember.sort((a, b) => b.friendsInCommunity.length - a.friendsInCommunity.length);
+  return notMember.slice(0, limit);
 }
 
 export async function getCommunityById(id: string) {
@@ -167,15 +273,27 @@ export async function listCommunityPosts(communityId: string, limit = 50) {
   });
 }
 
-export async function createCommunityPost(userId: string, communityId: string, content: string) {
+export interface CreateCommunityPostInput {
+  content: string;
+  allowComments?: boolean;
+  allowReactions?: boolean;
+}
+
+export async function createCommunityPost(
+  userId: string,
+  communityId: string,
+  input: CreateCommunityPostInput
+) {
   const member = await getMember(userId, communityId);
   if (!member) return null;
   return prisma.feedItem.create({
     data: {
       userId,
       communityId,
-      content,
+      content: input.content,
       type: "community",
+      allowComments: input.allowComments ?? true,
+      allowReactions: input.allowReactions ?? true,
     },
     include: { user: true },
   });

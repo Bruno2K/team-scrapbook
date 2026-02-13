@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { EmojiGifInput } from "@/components/ui/EmojiGifInput";
 import { Label } from "@/components/ui/label";
 import { CLASS_EMOJIS } from "@/lib/types";
 
@@ -77,12 +77,12 @@ export function SendScrapDialog({ target, open, onOpenChange }: SendScrapDialogP
             <Label className="font-heading text-[10px] uppercase tracking-wider text-muted-foreground">
               Recado
             </Label>
-            <Textarea
-              placeholder="Escreva seu recado..."
+            <EmojiGifInput
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="mt-1.5 bg-muted border-2 border-border focus:border-accent resize-none"
+              onChange={setContent}
+              placeholder="Escreva seu recado..."
               rows={3}
+              className="mt-1.5"
               disabled={postScrap.isPending}
             />
           </div>

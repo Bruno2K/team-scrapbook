@@ -13,7 +13,13 @@ export interface UserJSON {
   online: boolean;
 }
 
-export function userToJSON(user: User): UserJSON {
+/** Minimal user shape needed for JSON (allows Prisma include subsets; team/mainClass can be string) */
+export type UserLike = Pick<User, "id" | "name" | "nickname" | "level" | "avatar" | "online"> & {
+  team: string;
+  mainClass: string;
+};
+
+export function userToJSON(user: UserLike): UserJSON {
   return {
     id: user.id,
     name: user.name,

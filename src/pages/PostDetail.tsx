@@ -1,0 +1,75 @@
+import { useParams, Link } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getPost } from "@/api/feed";
+import { FEED_QUERY_KEY } from "@/hooks/useFeed";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { SidebarLeft } from "@/components/layout/SidebarLeft";
+import { SidebarRight } from "@/components/layout/SidebarRight";
+import { FeedCard } from "@/components/feed/FeedCard";
+import { CommentList } from "@/components/feed/CommentList";
+
+export const POST_QUERY_KEY = (id: string) => ["post", id] as const;
+
+export default function PostDetail() {
+  const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
+  const { data: response, isLoading } = useQuery({
+    queryKey: POST_QUERY_KEY(id ?? ""),
+    queryFn: () => getPost(id!),
+    enabled: Boolean(id),
+  });
+  const post = response?.post ?? null;
+
+  const invalidate = () => {
+    if (id) {
+      queryClient.invalidateQueries({ queryKey: POST_QUERY_KEY(id) });
+      queryClient.invalidateQueries({ queryKey: FEED_QUERY_KEY });
+    }
+  };
+
+  if (!id) {
+    return (
+      <MainLayout sidebarLeft={<SidebarLeft />} sidebarRight={<SidebarRight />}>
+        <p className="text-muted-foreground">Post não encontrado.</p>
+      </MainLayout>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <MainLayout sidebarLeft={<SidebarLeft />} sidebarRight={<SidebarRight />}>
+        <p className="text-muted-foreground">Carregando...</p>
+      </MainLayout>
+    );
+  }
+
+  if (!post) {
+    return (
+      <MainLayout sidebarLeft={<SidebarLeft />} sidebarRight={<SidebarRight />}>
+        <p className="text-muted-foreground">Post não encontrado.</p>
+      </MainLayout>
+    );
+  }
+
+  return (
+    <MainLayout sidebarLeft={<SidebarLeft />} sidebarRight={<SidebarRight />}>
+      <div className="flex flex-col min-h-0 h-full overflow-hidden">
+        <div className="flex-shrink-0 mb-3">
+          <Link
+            to="/"
+            className="text-[10px] font-heading uppercase tracking-wider text-accent hover:text-tf-yellow-light transition-colors"
+          >
+            ← Voltar ao feed
+          </Link>
+        </div>
+        <div className="list-scroll flex-1 min-h-0 pr-1 space-y-6">
+          <FeedCard item={post} onReactionChange={invalidate} />
+          <CommentList
+            feedItemId={post.id}
+            allowComments={post.allowComments !== false}
+          />
+        </div>
+      </div>
+    </MainLayout>
+  );
+}

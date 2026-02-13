@@ -113,13 +113,19 @@ export const MOCK_USERS: User[] = [
 ];
 
 export const MOCK_COMMUNITIES: Community[] = [
-  { id: "c1", name: "2Fort Veterans", description: "Veteranos do mapa mais icônico", members: 14523, dominantClass: "Sniper", team: "RED" },
-  { id: "c2", name: "Medics United", description: "Quem cura, vence!", members: 8901, dominantClass: "Medic", team: "BLU" },
-  { id: "c3", name: "Spy Check!", description: "Paranoia é sobrevivência", members: 6234, dominantClass: "Spy" },
-  { id: "c4", name: "Dustbowl Defenders", description: "Defenda o ponto ou morra tentando", members: 11200, dominantClass: "Engineer", team: "RED" },
-  { id: "c5", name: "Hat Trading Brasil", description: "Compra, venda e troca de hats", members: 22100, dominantClass: "Scout" },
-  { id: "c6", name: "Competitive TF2 BR", description: "Cena competitiva brasileira", members: 5400 },
+  { id: "c1", name: "2Fort Veterans", description: "Veteranos do mapa mais icônico", members: 14523, dominantClass: "Sniper", team: "RED", isMember: true, friendsInCommunity: [MOCK_USERS[1], MOCK_USERS[2]] },
+  { id: "c2", name: "Medics United", description: "Quem cura, vence!", members: 8901, dominantClass: "Medic", team: "BLU", isMember: true, friendsInCommunity: [MOCK_USERS[1]] },
+  { id: "c3", name: "Spy Check!", description: "Paranoia é sobrevivência", members: 6234, dominantClass: "Spy", isMember: false, friendsInCommunity: [MOCK_USERS[2], MOCK_USERS[5]] },
+  { id: "c4", name: "Dustbowl Defenders", description: "Defenda o ponto ou morra tentando", members: 11200, dominantClass: "Engineer", team: "RED", isMember: false, friendsInCommunity: [MOCK_USERS[4], MOCK_USERS[6]] },
+  { id: "c5", name: "Hat Trading Brasil", description: "Compra, venda e troca de hats", members: 22100, dominantClass: "Scout", isMember: false, friendsInCommunity: [] },
+  { id: "c6", name: "Competitive TF2 BR", description: "Cena competitiva brasileira", members: 5400, isMember: false, friendsInCommunity: [MOCK_USERS[3]] },
 ];
+
+/** Mock: comunidades em que o usuário é membro (para sidebar / memberOnly). */
+export const MOCK_MY_COMMUNITIES: Community[] = MOCK_COMMUNITIES.filter((c) => c.isMember === true);
+
+/** Mock: recomendadas (não sou membro, amigos estão). */
+export const MOCK_RECOMMENDED_COMMUNITIES: Community[] = MOCK_COMMUNITIES.filter((c) => c.isMember === false && (c.friendsInCommunity?.length ?? 0) > 0);
 
 export const MOCK_FEED: FeedItem[] = [
   {
@@ -163,6 +169,14 @@ export const MOCK_FEED: FeedItem[] = [
     content: "Minha sentry nível 3 segurou o último ponto sozinha. Engie life. 🔧",
     timestamp: "3h atrás",
     type: "post",
+  },
+  {
+    id: "s1",
+    user: MOCK_USERS[1],
+    content: "E aí Pyro! Para de queimar meus pacientes, pelo amor 😂🔥",
+    timestamp: "10 min atrás",
+    type: "scrap",
+    reaction: "burn",
   },
 ];
 

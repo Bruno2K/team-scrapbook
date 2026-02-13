@@ -5,12 +5,12 @@ import { FriendCard } from "@/components/friends/FriendCard";
 import { CommunityCard } from "@/components/community/CommunityCard";
 import { SendScrapDialog } from "@/components/scrapbook/SendScrapDialog";
 import { useFriends } from "@/hooks/useFriends";
-import { useCommunities } from "@/hooks/useCommunities";
+import { useMyCommunities } from "@/hooks/useCommunities";
 import { getStoredToken } from "@/api/auth";
 
 export function SidebarRight() {
   const { onlineFriends, offlineFriends } = useFriends();
-  const { communities } = useCommunities();
+  const { communities } = useMyCommunities();
   const [scrapTarget, setScrapTarget] = useState<User | null>(null);
   const [scrapDialogOpen, setScrapDialogOpen] = useState(false);
   const hasToken = Boolean(getStoredToken());
@@ -54,15 +54,21 @@ export function SidebarRight() {
         }}
       />
 
-      {/* Comunidades: cabe na tela, sem scroll; ver todas em /communities */}
+      {/* Comunidades: só as que faço parte; ver todas em /communities */}
       <div className="flex-shrink-0 min-h-0 max-h-[50vh] overflow-hidden flex flex-col mt-4">
         <h3 className="font-heading text-xs text-muted-foreground uppercase tracking-widest flex items-center gap-2 flex-shrink-0 px-1 mb-3">
           🏰 Comunidades
         </h3>
         <div className="space-y-3 min-h-0 overflow-hidden">
-          {communities.slice(0, 2).map((c) => (
-            <CommunityCard key={c.id} community={c} />
-          ))}
+          {!hasToken ? (
+            <p className="text-xs text-muted-foreground px-1">Faça login para ver suas comunidades</p>
+          ) : communities.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-1">Você não está em nenhuma comunidade</p>
+          ) : (
+            communities.slice(0, 2).map((c) => (
+              <CommunityCard key={c.id} community={c} />
+            ))
+          )}
         </div>
         <Link
           to="/communities"

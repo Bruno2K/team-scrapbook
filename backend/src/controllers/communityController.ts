@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
+import type { Community as PrismaCommunity } from "@prisma/client";
 import {
   communityToJSON,
+  communityWithMetaToJSON,
   communityDetailToJSON,
   communityMemberToJSON,
   type CommunityDetailJSON,
@@ -8,6 +10,8 @@ import {
 import { feedItemToJSON } from "../views/feedView.js";
 import {
   listCommunities,
+  listCommunitiesWhereMember,
+  listRecommendedCommunities,
   getCommunityById,
   getMember,
   canManageCommunity,
@@ -22,12 +26,43 @@ import {
   createCommunityPost,
 } from "../services/communityService.js";
 
-export async function getCommunities(_req: Request, res: Response) {
+function isCommunityWithMeta(
+  c: Awaited<ReturnType<typeof listCommunities>>
+): c is import("../services/communityService.js").CommunityWithMeta[] {
+  return Array.isArray(c) && c.length > 0 && "isMember" in c[0];
+}
+
+export async function getCommunities(req: Request, res: Response) {
   try {
-    const list = await listCommunities();
-    res.status(200).json(list.map(communityToJSON));
+    const search = typeof req.query.search === "string" ? req.query.search : undefined;
+    const memberOnly = req.query.memberOnly === "true";
+    const userId = req.user?.id;
+
+    if (memberOnly && userId) {
+      const list = await listCommunitiesWhereMember(userId, 50);
+      return res.status(200).json(list.map(communityWithMetaToJSON));
+    }
+
+    const list = await listCommunities({ userId, search, limit: 50 });
+    if (isCommunityWithMeta(list)) {
+      return res.status(200).json(list.map(communityWithMetaToJSON));
+    }
+    res.status(200).json((list as PrismaCommunity[]).map(communityToJSON));
   } catch {
     res.status(500).json({ message: "Erro ao carregar comunidades" });
+  }
+}
+
+export async function getRecommendedCommunities(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(200).json([]);
+    }
+    const list = await listRecommendedCommunities(userId, 20);
+    res.status(200).json(list.map(communityWithMetaToJSON));
+  } catch {
+    res.status(500).json({ message: "Erro ao carregar recomendações" });
   }
 }
 
@@ -103,11 +138,11 @@ export async function updateCommunity(req: Request, res: Response) {
   }
   const { name, description, dominantClass, team } = req.body ?? {};
   try {
-    const data: { name?: string; description?: string; dominantClass?: string | null; team?: string | null } = {};
+    const data: import("../services/communityService.js").UpdateCommunityInput = {};
     if (typeof name === "string" && name.trim()) data.name = name.trim();
     if (typeof description === "string") data.description = description.trim();
-    if (dominantClass !== undefined) data.dominantClass = dominantClass || null;
-    if (team !== undefined) data.team = team || null;
+    if (dominantClass !== undefined) data.dominantClass = dominantClass as import("@prisma/client").TF2Class | null;
+    if (team !== undefined) data.team = team as import("@prisma/client").Team | null;
     await updateCommunityService(id, data);
     res.status(200).json({ message: "Comunidade atualizada" });
   } catch {
@@ -236,6 +271,8 @@ export async function postToCommunity(req: Request, res: Response) {
   }
   const id = req.params.id;
   const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  const allowComments = req.body?.allowComments !== false;
+  const allowReactions = req.body?.allowReactions !== false;
   if (!id) {
     res.status(400).json({ message: "ID da comunidade é obrigatório" });
     return;
@@ -245,7 +282,11 @@ export async function postToCommunity(req: Request, res: Response) {
     return;
   }
   try {
-    const item = await createCommunityPost(req.user.id, id, content);
+    const item = await createCommunityPost(req.user.id, id, {
+      content,
+      allowComments,
+      allowReactions,
+    });
     if (!item) {
       res.status(403).json({ message: "Apenas membros podem publicar" });
       return;

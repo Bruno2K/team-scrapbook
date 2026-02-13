@@ -46,18 +46,18 @@ async function main() {
     console.log(`Seed: ${usersCreated} agent users created. Login with e.g. Scout_RED, Medic_BLU — password: password123`);
   }
 
-  // Communities: TF2 humor & popular memes
+  // Communities: TF2 humor & popular memes (memberCount will be set from real members after seed)
   const communityData = [
-    { name: "Pootis", description: "Pootis Spencer here! Heavy main nation", memberCount: 50000, dominantClass: "Heavy" as const },
-    { name: "Sandvich", description: "Nom nom nom. Sandvich appreciation society", memberCount: 42000, dominantClass: "Heavy" as const },
-    { name: "Meet the Team", description: "Meet the Scout, Soldier, Pyro... memes only", memberCount: 38000, dominantClass: "Scout" as const },
-    { name: "Maggots", description: "You are all maggots. Soldier mains unite", memberCount: 22000, dominantClass: "Soldier" as const },
-    { name: "Spy Crab", description: "🦀 Spies doing the crab walk", memberCount: 18500, dominantClass: "Spy" as const },
-    { name: "Engineer Gaming", description: "Pootis + Sentry. Engineer gaming.", memberCount: 31000, dominantClass: "Engineer" as const },
-    { name: "Hoovy", description: "Friendly Heavies giving sandviches", memberCount: 27000, dominantClass: "Heavy" as const },
-    { name: "Medic Über", description: "I am bulletproof! Medic + Heavy memes", memberCount: 24000, dominantClass: "Medic" as const },
-    { name: "2Fort Intel", description: "Snipers on the battlements. Forever.", memberCount: 35000, dominantClass: "Sniper" as const, team: "RED" as const },
-    { name: "Backstab", description: "Gentlemen. Spy main culture", memberCount: 19000, dominantClass: "Spy" as const },
+    { name: "Pootis", description: "Pootis Spencer here! Heavy main nation", dominantClass: "Heavy" as const },
+    { name: "Sandvich", description: "Nom nom nom. Sandvich appreciation society", dominantClass: "Heavy" as const },
+    { name: "Meet the Team", description: "Meet the Scout, Soldier, Pyro... memes only", dominantClass: "Scout" as const },
+    { name: "Maggots", description: "You are all maggots. Soldier mains unite", dominantClass: "Soldier" as const },
+    { name: "Spy Crab", description: "🦀 Spies doing the crab walk", dominantClass: "Spy" as const },
+    { name: "Engineer Gaming", description: "Pootis + Sentry. Engineer gaming.", dominantClass: "Engineer" as const },
+    { name: "Hoovy", description: "Friendly Heavies giving sandviches", dominantClass: "Heavy" as const },
+    { name: "Medic Über", description: "I am bulletproof! Medic + Heavy memes", dominantClass: "Medic" as const },
+    { name: "2Fort Intel", description: "Snipers on the battlements. Forever.", dominantClass: "Sniper" as const, team: "RED" as const },
+    { name: "Backstab", description: "Gentlemen. Spy main culture", dominantClass: "Spy" as const },
   ];
 
   const communityIds: Record<string, string> = {};
@@ -70,7 +70,7 @@ async function main() {
         data: {
           name: c.name,
           description: c.description,
-          memberCount: c.memberCount,
+          memberCount: 0,
           dominantClass: c.dominantClass,
           team: (c as { team?: "RED" | "BLU" }).team,
         },
@@ -113,7 +113,16 @@ async function main() {
       }
     }
   }
-  console.log("Seed: user-community memberships created.");
+
+  // Sync memberCount with actual number of members (reality)
+  for (const cId of Object.values(communityIds)) {
+    const count = await prisma.communityMember.count({ where: { communityId: cId } });
+    await prisma.community.update({
+      where: { id: cId },
+      data: { memberCount: count },
+    });
+  }
+  console.log("Seed: user-community memberships created (memberCount synced).");
 
   // Friendships: create a graph so we have "friends in common" and "friends of friends"
   // Scout_RED <-> Soldier_RED, Medic_RED, Scout_BLU (existing idea)

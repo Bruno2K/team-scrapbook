@@ -59,6 +59,9 @@ model User {
   blockedBy       BlockedUser[]     @relation("BlockedUserBlocked")
   communityMembers CommunityMember[]
   communitiesOwned  Community[]         @relation("CommunityOwner")
+  postComments    PostComment[]
+  feedItemReactions FeedItemReaction[]
+  commentReactions  CommentReaction[]
 }
 
 model Friendship {
@@ -82,14 +85,54 @@ model BlockedUser {
 }
 
 model FeedItem {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  content     String
-  type        FeedType  @default(post)
-  communityId String?
-  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content        String
+  type           FeedType  @default(post)
+  communityId    String?
+  community      Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  allowComments  Boolean   @default(true)
+  allowReactions Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  comments       PostComment[]
+  reactions      FeedItemReaction[]
+}
+
+model PostComment {
+  id         String        @id @default(cuid())
+  feedItemId String
+  feedItem   FeedItem      @relation(fields: [feedItemId], references: [id], onDelete: Cascade)
+  parentId   String?
+  parent     PostComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    PostComment[] @relation("CommentReplies")
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content    String
+  createdAt  DateTime      @default(now())
+  reactions  CommentReaction[]
+}
+
+model FeedItemReaction {
+  id         String        @id @default(cuid())
+  feedItemId String
+  feedItem   FeedItem      @relation(fields: [feedItemId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reaction   ScrapReaction
+  createdAt  DateTime      @default(now())
+  @@unique([feedItemId, userId])
+}
+
+model CommentReaction {
+  id        String       @id @default(cuid())
+  commentId String
+  comment   PostComment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reaction  ScrapReaction
+  createdAt DateTime     @default(now())
+  @@unique([commentId, userId])
 }
 
 model ScrapMessage {

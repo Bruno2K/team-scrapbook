@@ -1,14 +1,16 @@
-import { useState } from "react";
-import { Link, useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import type { User } from "@/lib/types";
 import { CLASS_EMOJIS } from "@/lib/types";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { SidebarLeft } from "@/components/layout/SidebarLeft";
 import { SidebarRight } from "@/components/layout/SidebarRight";
 import { FeedCard } from "@/components/feed/FeedCard";
+import { EmojiGifInput } from "@/components/ui/EmojiGifInput";
 import { EditCommunityModal } from "@/components/community/EditCommunityModal";
 import { ConfirmDeleteCommunityModal } from "@/components/community/ConfirmDeleteCommunityModal";
 import { ConfirmRemoveMemberModal } from "@/components/community/ConfirmRemoveMemberModal";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useCommunity,
   useCommunityMembers,
@@ -19,12 +21,14 @@ import {
   useDeleteCommunity,
   useRemoveMember,
   usePostToCommunity,
+  COMMUNITY_POSTS_QUERY_KEY,
 } from "@/hooks/useCommunities";
 import { getStoredToken } from "@/api/auth";
 
 export default function CommunityDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const hasToken = Boolean(getStoredToken());
   const { community, isLoading: communityLoading } = useCommunity(id);
   const { members, isLoading: membersLoading } = useCommunityMembers(id);
@@ -36,10 +40,20 @@ export default function CommunityDetail() {
   const removeMemberMutation = useRemoveMember(id ?? "");
   const postMutation = usePostToCommunity(id ?? "");
 
+  const location = useLocation();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removeMemberTarget, setRemoveMemberTarget] = useState<User | null>(null);
   const [postContent, setPostContent] = useState("");
+  const [allowComments, setAllowComments] = useState(true);
+  const [allowReactions, setAllowReactions] = useState(true);
+
+  useEffect(() => {
+    if (location.hash === "#post" && community?.isMember) {
+      const el = document.getElementById("post");
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [location.hash, community?.isMember]);
 
   const handleDelete = async () => {
     if (!id) return;
@@ -55,7 +69,11 @@ export default function CommunityDetail() {
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!postContent.trim()) return;
-    await postMutation.mutateAsync(postContent.trim());
+    await postMutation.mutateAsync({
+      content: postContent.trim(),
+      allowComments,
+      allowReactions,
+    });
     setPostContent("");
   };
 
@@ -165,21 +183,44 @@ export default function CommunityDetail() {
               Publicações
             </h2>
             {community.isMember && (
-              <form onSubmit={handlePost} className="flex-shrink-0 tf-card p-3 mb-2">
-                <textarea
+              <form id="post" onSubmit={handlePost} className="flex-shrink-0 tf-card p-4 mb-2 scroll-mt-4">
+                <label className="block font-heading text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
+                  ✏️ Nova publicação
+                </label>
+                <EmojiGifInput
                   value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
-                  placeholder="Publicar na comunidade..."
-                  rows={2}
-                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm resize-none"
+                  onChange={setPostContent}
+                  placeholder="O que está acontecendo na comunidade?"
+                  rows={3}
+                  disabled={postMutation.isPending}
                 />
+                <div className="flex flex-wrap gap-4 items-center my-2">
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowComments}
+                      onChange={(e) => setAllowComments(e.target.checked)}
+                      className="rounded border-border"
+                    />
+                    Permitir comentários
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allowReactions}
+                      onChange={(e) => setAllowReactions(e.target.checked)}
+                      className="rounded border-border"
+                    />
+                    Permitir reações
+                  </label>
+                </div>
                 <div className="flex justify-end mt-2">
                   <button
                     type="submit"
                     disabled={postMutation.isPending || !postContent.trim()}
-                    className="px-3 py-1.5 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground disabled:opacity-50"
+                    className="px-4 py-2 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground hover:brightness-110 disabled:opacity-50 transition-all"
                   >
-                    {postMutation.isPending ? "…" : "Publicar"}
+                    {postMutation.isPending ? "Enviando…" : "Publicar"}
                   </button>
                 </div>
               </form>
@@ -194,7 +235,11 @@ export default function CommunityDetail() {
               ) : (
                 <div className="space-y-3">
                   {posts.map((item) => (
-                    <FeedCard key={item.id} item={item} />
+                    <FeedCard
+                      key={item.id}
+                      item={item}
+                      onReactionChange={() => id && queryClient.invalidateQueries({ queryKey: COMMUNITY_POSTS_QUERY_KEY(id) })}
+                    />
                   ))}
                 </div>
               )}

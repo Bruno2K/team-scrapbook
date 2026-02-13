@@ -1,6 +1,16 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+// #region agent log
+const _log = (loc: string, msg: string, data: Record<string, unknown>) => {
+  fetch("http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ location: loc, message: msg, data, timestamp: Date.now(), hypothesisId: "H3" }),
+  }).catch(() => {});
+};
+// #endregion
+
 interface MainLayoutProps {
   sidebarLeft: ReactNode;
   children: ReactNode;
@@ -9,6 +19,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutProps) {
   const location = useLocation();
+  _log("MainLayout.tsx:render", "MainLayout_mount", { path: location.pathname });
   const navItems = [
     { label: "Feed", icon: "📋", to: "/" },
     { label: "Squad", icon: "⚔️", to: "/friends" },

@@ -6,6 +6,7 @@ import healthRoutes from "./routes/healthRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import feedRoutes from "./routes/feedRoutes.js";
+import commentRoutes from "./routes/commentRoutes.js";
 import scrapRoutes from "./routes/scrapRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
 
@@ -25,6 +26,7 @@ app.use("/health", healthRoutes);
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/feed", feedRoutes);
+app.use("/comments", commentRoutes);
 app.use("/scraps", scrapRoutes);
 app.use("/communities", communityRoutes);
 

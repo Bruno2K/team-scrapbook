@@ -38,6 +38,10 @@ export interface Community {
   members: number;
   dominantClass?: TF2Class;
   team?: Team;
+  /** Present when listing with auth: whether current user is a member. */
+  isMember?: boolean;
+  /** Present when listing with auth: friends of current user in this community. */
+  friendsInCommunity?: User[];
 }
 
 export interface CommunityDetail extends Community {
@@ -52,12 +56,42 @@ export interface CommunityMemberRole {
   joinedAt: string;
 }
 
+export type ReactionType = "headshot" | "heal" | "burn" | "backstab";
+
+export interface ReactionCounts {
+  headshot: number;
+  heal: number;
+  burn: number;
+  backstab: number;
+}
+
 export interface FeedItem {
   id: string;
   user: User;
   content: string;
   timestamp: string;
   type: "post" | "achievement" | "community" | "scrap";
+  /** Present when type is "scrap": reaction from sender */
+  reaction?: ReactionType;
+  allowComments?: boolean;
+  allowReactions?: boolean;
+  /** Present when loaded in list or detail */
+  reactionCounts?: ReactionCounts;
+  myReaction?: ReactionType;
+  /** Total number of comments (including replies) */
+  commentCount?: number;
+}
+
+export interface PostComment {
+  id: string;
+  feedItemId: string;
+  parentId?: string | null;
+  user: User;
+  content: string;
+  timestamp: string;
+  replies?: PostComment[];
+  reactionCounts?: ReactionCounts;
+  myReaction?: ReactionType;
 }
 
 export type ScrapFilter = "received" | "sent" | "all";
@@ -68,7 +102,7 @@ export interface ScrapMessage {
   to?: User;
   content: string;
   timestamp: string;
-  reaction?: "headshot" | "heal" | "burn" | "backstab";
+  reaction?: ReactionType;
   direction?: "sent" | "received";
 }
 

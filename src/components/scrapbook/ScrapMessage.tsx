@@ -1,5 +1,6 @@
 import type { ScrapMessage as ScrapMessageType } from "@/lib/types";
 import { CLASS_EMOJIS } from "@/lib/types";
+import { ContentWithMedia } from "@/components/ui/ContentWithMedia";
 
 interface ScrapMessageProps {
   scrap: ScrapMessageType;
@@ -44,7 +45,9 @@ export function ScrapMessage({ scrap, showDirection }: ScrapMessageProps) {
           <span className="text-[10px] text-muted-foreground">{scrap.timestamp}</span>
         </div>
 
-        <p className="text-sm text-card-foreground mt-1 italic">"{scrap.content}"</p>
+        <div className="text-sm text-card-foreground mt-1 italic">
+          <ContentWithMedia content={scrap.content} className="italic" />
+        </div>
 
         {scrap.reaction && (
           <div className="mt-2">

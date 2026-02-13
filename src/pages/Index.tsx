@@ -4,18 +4,34 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { SidebarLeft } from "@/components/layout/SidebarLeft";
 import { SidebarRight } from "@/components/layout/SidebarRight";
 import { FeedCard } from "@/components/feed/FeedCard";
-import { useFeed, usePostFeed } from "@/hooks/useFeed";
+import { EmojiGifInput } from "@/components/ui/EmojiGifInput";
+import { useQueryClient } from "@tanstack/react-query";
+import { useFeed, usePostFeed, FEED_QUERY_KEY } from "@/hooks/useFeed";
+
+// #region agent log
+const _log = (loc: string, msg: string, data: Record<string, unknown>) => {
+  fetch("http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ location: loc, message: msg, data, timestamp: Date.now(), hypothesisId: "H2" }),
+  }).catch(() => {});
+};
+// #endregion
 
 const Index = () => {
+  const queryClient = useQueryClient();
   const { feed, isLoading } = useFeed();
   const postFeed = usePostFeed();
   const [content, setContent] = useState("");
+  const [allowComments, setAllowComments] = useState(true);
+  const [allowReactions, setAllowReactions] = useState(true);
+  _log("Index.tsx:mount", "Index_mount", { isLoading, feedLen: feed?.length ?? 0 });
 
   const handleSubmit = () => {
     const trimmed = content.trim();
     if (!trimmed) return;
     postFeed.mutate(
-      { content: trimmed },
+      { content: trimmed, allowComments, allowReactions },
       {
         onSuccess: () => {
           setContent("");
@@ -40,14 +56,33 @@ const Index = () => {
           <h3 className="font-heading text-xs text-muted-foreground uppercase tracking-widest">
             📡 Transmissão de Campo
           </h3>
-          <textarea
-            placeholder="Relate sua última batalha, soldado..."
-            className="w-full bg-muted border-2 border-border rounded p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:border-accent transition-colors"
-            rows={3}
+          <EmojiGifInput
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={setContent}
+            placeholder="Relate sua última batalha, soldado..."
+            rows={3}
             disabled={postFeed.isPending}
           />
+          <div className="flex flex-wrap gap-4 items-center">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allowComments}
+                onChange={(e) => setAllowComments(e.target.checked)}
+                className="rounded border-border"
+              />
+              Permitir comentários
+            </label>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={allowReactions}
+                onChange={(e) => setAllowReactions(e.target.checked)}
+                className="rounded border-border"
+              />
+              Permitir reações
+            </label>
+          </div>
           <div className="flex justify-end">
             <button
               type="button"
@@ -67,7 +102,11 @@ const Index = () => {
           ) : (
             <div className="space-y-4">
               {feed.map((item) => (
-                <FeedCard key={item.id} item={item} />
+                <FeedCard
+                  key={item.id}
+                  item={item}
+                  onReactionChange={() => queryClient.invalidateQueries({ queryKey: FEED_QUERY_KEY })}
+                />
               ))}
             </div>
           )}

@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCommunities,
+  getMyCommunities,
+  getRecommendedCommunities,
   getCommunity,
   getCommunityMembers,
   getCommunityPosts,
@@ -12,17 +14,33 @@ import {
   removeMember,
   postToCommunity,
 } from "@/api/communities";
-import type { CreateCommunityInput, UpdateCommunityInput } from "@/api/communities";
+import type { CreateCommunityInput, GetCommunitiesParams, UpdateCommunityInput } from "@/api/communities";
 
 export const COMMUNITIES_QUERY_KEY = ["communities"];
 export const COMMUNITY_QUERY_KEY = (id: string) => ["communities", id] as const;
 export const COMMUNITY_MEMBERS_QUERY_KEY = (id: string) => ["communities", id, "members"] as const;
 export const COMMUNITY_POSTS_QUERY_KEY = (id: string) => ["communities", id, "posts"] as const;
 
-export function useCommunities() {
+export function useCommunities(params?: GetCommunitiesParams) {
   const { data: communities = [], isLoading, error } = useQuery({
-    queryKey: COMMUNITIES_QUERY_KEY,
-    queryFn: getCommunities,
+    queryKey: [...COMMUNITIES_QUERY_KEY, params ?? {}],
+    queryFn: () => getCommunities(params),
+  });
+  return { communities, isLoading, error };
+}
+
+export function useMyCommunities() {
+  const { data: communities = [], isLoading, error } = useQuery({
+    queryKey: [...COMMUNITIES_QUERY_KEY, "mine"],
+    queryFn: getMyCommunities,
+  });
+  return { communities, isLoading, error };
+}
+
+export function useRecommendedCommunities() {
+  const { data: communities = [], isLoading, error } = useQuery({
+    queryKey: [...COMMUNITIES_QUERY_KEY, "recommendations"],
+    queryFn: getRecommendedCommunities,
   });
   return { communities, isLoading, error };
 }
@@ -118,10 +136,24 @@ export function useRemoveMember(communityId: string) {
   });
 }
 
+export interface PostToCommunityPayload {
+  content: string;
+  allowComments?: boolean;
+  allowReactions?: boolean;
+}
+
 export function usePostToCommunity(communityId: string) {
   const invalidate = useInvalidateCommunity(communityId);
   return useMutation({
-    mutationFn: (content: string) => postToCommunity(communityId, content),
+    mutationFn: (payload: string | PostToCommunityPayload) => {
+      if (typeof payload === "string") {
+        return postToCommunity(communityId, payload);
+      }
+      return postToCommunity(communityId, payload.content, {
+        allowComments: payload.allowComments,
+        allowReactions: payload.allowReactions,
+      });
+    },
     onSuccess: invalidate,
   });
 }

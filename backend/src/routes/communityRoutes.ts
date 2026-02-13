@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import {
   getCommunities,
+  getRecommendedCommunities,
   getCommunity,
   createCommunity,
   updateCommunity,
@@ -16,8 +17,9 @@ import {
 
 const router = Router();
 
-router.get("/", getCommunities);
-router.get("/:id", getCommunity);
+router.get("/", optionalAuthMiddleware, getCommunities);
+router.get("/recommendations", optionalAuthMiddleware, getRecommendedCommunities);
+router.get("/:id", optionalAuthMiddleware, getCommunity);
 router.get("/:id/members", getCommunityMembers);
 router.get("/:id/posts", getCommunityPosts);
 
