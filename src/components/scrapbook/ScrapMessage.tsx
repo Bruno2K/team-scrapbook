@@ -1,6 +1,7 @@
 import type { ScrapMessage as ScrapMessageType } from "@/lib/types";
 import { CLASS_EMOJIS } from "@/lib/types";
 import { ContentWithMedia } from "@/components/ui/ContentWithMedia";
+import { AttachmentPreview } from "@/components/feed/AttachmentPreview";
 
 interface ScrapMessageProps {
   scrap: ScrapMessageType;
@@ -45,6 +46,9 @@ export function ScrapMessage({ scrap, showDirection }: ScrapMessageProps) {
           <span className="text-[10px] text-muted-foreground">{scrap.timestamp}</span>
         </div>
 
+        {scrap.attachments?.length ? (
+          <AttachmentPreview attachments={scrap.attachments} className="my-2" />
+        ) : null}
         <div className="text-sm text-card-foreground mt-1 italic">
           <ContentWithMedia content={scrap.content} className="italic" />
         </div>

@@ -353,10 +353,13 @@ export async function listCommunityPosts(communityId: string, limit = 50) {
   });
 }
 
+export type AttachmentInput = { url: string; type: "image" | "video" | "audio" | "document"; filename?: string };
+
 export interface CreateCommunityPostInput {
   content: string;
   allowComments?: boolean;
   allowReactions?: boolean;
+  attachments?: AttachmentInput[];
 }
 
 export async function createCommunityPost(
@@ -374,6 +377,7 @@ export async function createCommunityPost(
       type: "community",
       allowComments: input.allowComments ?? true,
       allowReactions: input.allowReactions ?? true,
+      attachments: (input.attachments?.length ? input.attachments : undefined) as object | undefined,
     },
     include: { user: true },
   });

@@ -40,12 +40,15 @@ export async function listFeed(userId?: string, limit = 50): Promise<FeedEntry[]
   return entries.slice(0, limit);
 }
 
+export type AttachmentInput = { url: string; type: "image" | "video" | "audio" | "document"; filename?: string };
+
 export interface CreatePostInput {
   userId: string;
   content: string;
   type?: FeedType;
   allowComments?: boolean;
   allowReactions?: boolean;
+  attachments?: AttachmentInput[];
 }
 
 export async function createPost(input: CreatePostInput) {
@@ -56,6 +59,7 @@ export async function createPost(input: CreatePostInput) {
       type: input.type ?? "post",
       allowComments: input.allowComments ?? true,
       allowReactions: input.allowReactions ?? true,
+      attachments: (input.attachments?.length ? input.attachments : undefined) as object | undefined,
     },
     include: { user: true },
   });
@@ -71,4 +75,14 @@ export async function getFeedItemById(
       user: options?.includeUser !== false,
     },
   });
+}
+
+export async function deleteFeedItem(feedItemId: string, userId: string): Promise<boolean> {
+  const item = await prisma.feedItem.findUnique({
+    where: { id: feedItemId },
+    select: { userId: true },
+  });
+  if (!item || item.userId !== userId) return false;
+  await prisma.feedItem.delete({ where: { id: feedItemId } });
+  return true;
 }

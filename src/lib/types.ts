@@ -58,6 +58,14 @@ export interface CommunityMemberRole {
 
 export type ReactionType = "headshot" | "heal" | "burn" | "backstab";
 
+export type AttachmentType = "image" | "video" | "audio" | "document";
+
+export interface Attachment {
+  url: string;
+  type: AttachmentType;
+  filename?: string;
+}
+
 export interface ReactionCounts {
   headshot: number;
   heal: number;
@@ -86,6 +94,8 @@ export interface FeedItem {
   scrapDirection?: "sent" | "received";
   /** Present when type is "scrap" and scrapDirection is "sent": recipient */
   scrapTo?: Pick<User, "id" | "nickname">;
+  /** Media attachments */
+  attachments?: Attachment[];
 }
 
 export interface PostComment {
@@ -110,6 +120,7 @@ export interface ScrapMessage {
   timestamp: string;
   reaction?: ReactionType;
   direction?: "sent" | "received";
+  attachments?: Attachment[];
 }
 
 export type ReputationBadge =

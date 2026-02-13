@@ -1,6 +1,7 @@
 import type { ScrapMessage as PrismaScrap } from "@prisma/client";
 import type { User } from "@prisma/client";
 import { userToJSON, type UserJSON } from "./userView.js";
+import type { AttachmentJSON } from "./feedView.js";
 
 export type ScrapReaction = "headshot" | "heal" | "burn" | "backstab";
 
@@ -14,6 +15,7 @@ export interface ScrapMessageJSON {
   timestamp: string;
   reaction?: ScrapReaction;
   direction?: ScrapDirection;
+  attachments?: AttachmentJSON[];
 }
 
 type ScrapWithFrom = PrismaScrap & { from: User };
@@ -30,6 +32,9 @@ export function scrapToJSON(
     timestamp: scrap.createdAt.toISOString(),
     reaction: scrap.reaction as ScrapReaction | undefined,
     ...(direction ? { direction } : {}),
+    ...(scrap.attachments != null && Array.isArray(scrap.attachments)
+      ? { attachments: scrap.attachments as unknown as AttachmentJSON[] }
+      : {}),
   };
   if (direction === "sent" && "to" in scrap && scrap.to) {
     return { ...base, to: userToJSON(scrap.to) };

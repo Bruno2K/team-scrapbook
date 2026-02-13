@@ -1,4 +1,4 @@
-import type { FeedItem, PostComment } from "@/lib/types";
+import type { Attachment, FeedItem, PostComment } from "@/lib/types";
 import { apiRequest, isApiConfigured } from "./client";
 import { MOCK_FEED } from "@/lib/mockData";
 
@@ -34,6 +34,7 @@ export interface PostFeedInput {
   type?: "post" | "achievement" | "community" | "scrap";
   allowComments?: boolean;
   allowReactions?: boolean;
+  attachments?: Attachment[];
 }
 
 export async function postFeedItem(input: PostFeedInput): Promise<FeedItem> {
@@ -41,4 +42,9 @@ export async function postFeedItem(input: PostFeedInput): Promise<FeedItem> {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export async function deleteFeedItem(id: string): Promise<void> {
+  if (!isApiConfigured()) return;
+  await apiRequest(`/feed/${id}`, { method: "DELETE" });
 }

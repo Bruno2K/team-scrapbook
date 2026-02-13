@@ -5,6 +5,7 @@ import {
   listFeed,
   createPost,
   getFeedItemById,
+  deleteFeedItem,
 } from "../services/feedService.js";
 import {
   listCommentsByFeedItemId,
@@ -29,11 +30,18 @@ import { feedItemToJSON, scrapToFeedItemJSON } from "../views/feedView.js";
 import { userToJSON } from "../views/userView.js";
 import { commentToJSON } from "../views/commentView.js";
 
+const attachmentSchema = z.object({
+  url: z.string().url(),
+  type: z.enum(["image", "video", "audio", "document"]),
+  filename: z.string().optional(),
+});
+
 const createPostSchema = z.object({
-  content: z.string().min(1, "Conteúdo é obrigatório"),
+  content: z.string().default(""),
   type: z.enum(["post", "achievement", "community", "scrap"]).optional(),
   allowComments: z.boolean().optional(),
   allowReactions: z.boolean().optional(),
+  attachments: z.array(attachmentSchema).optional().default([]),
 });
 
 export async function getFeed(req: Request, res: Response) {
@@ -171,14 +179,21 @@ export async function postFeed(req: Request, res: Response) {
     res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Dados inválidos" });
     return;
   }
+  const content = (parsed.data.content ?? "").trim();
+  const attachments = parsed.data.attachments ?? [];
+  if (!content && attachments.length === 0) {
+    res.status(400).json({ message: "Conteúdo ou anexos são obrigatórios" });
+    return;
+  }
 
   try {
     const item = await createPost({
       userId: req.user.id,
-      content: parsed.data.content,
+      content: content || "",
       type: parsed.data.type,
       allowComments: parsed.data.allowComments,
       allowReactions: parsed.data.allowReactions,
+      attachments: attachments.length ? attachments : undefined,
     });
     res.status(201).json(feedItemToJSON(item));
   } catch (err) {
@@ -312,5 +327,27 @@ export async function removePostReaction(req: Request, res: Response) {
     res.status(200).json({ removed });
   } catch (err) {
     res.status(500).json({ message: "Erro ao remover reação" });
+  }
+}
+
+export async function deletePost(req: Request, res: Response) {
+  if (!req.user) {
+    res.status(401).json({ message: "Não autorizado" });
+    return;
+  }
+  const feedItemId = req.params.id;
+  if (!feedItemId) {
+    res.status(400).json({ message: "ID do post é obrigatório" });
+    return;
+  }
+  try {
+    const deleted = await deleteFeedItem(feedItemId, req.user.id);
+    if (!deleted) {
+      res.status(403).json({ message: "Não autorizado a excluir este post" });
+      return;
+    }
+    res.status(200).json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ message: "Erro ao excluir post" });
   }
 }

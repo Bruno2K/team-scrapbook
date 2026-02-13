@@ -95,6 +95,7 @@ model FeedItem {
   community      Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
   allowComments  Boolean   @default(true)
   allowReactions Boolean   @default(true)
+  attachments    Json?
   createdAt      DateTime  @default(now())
   comments       PostComment[]
   reactions      FeedItemReaction[]
@@ -146,6 +147,7 @@ model ScrapMessage {
   to         User          @relation("ScrapsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
   content    String
   reaction   ScrapReaction?
+  attachments Json?
   createdAt  DateTime      @default(now())
   scrapReactions ScrapMessageReaction[]
   comments   PostComment[]

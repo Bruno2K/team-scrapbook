@@ -30,6 +30,14 @@ export interface FeedItemJSON {
   scrapDirection?: "sent" | "received";
   /** Present when type is "scrap" and scrapDirection is "sent": recipient */
   scrapTo?: UserJSON;
+  /** Media attachments (images, video, audio, documents) */
+  attachments?: AttachmentJSON[];
+}
+
+export interface AttachmentJSON {
+  url: string;
+  type: "image" | "video" | "audio" | "document";
+  filename?: string;
 }
 
 /** User shape from feed/scrap include (subset; team/mainClass may be string from API) */
@@ -67,6 +75,8 @@ export function feedItemToJSON(
   if (options?.myReaction) base.myReaction = options.myReaction;
   if (options?.commentCount !== undefined) base.commentCount = options.commentCount;
   if (item.community) base.community = { id: item.community.id, name: item.community.name };
+  if (item.attachments != null && Array.isArray(item.attachments))
+    base.attachments = item.attachments as unknown as AttachmentJSON[];
   return base;
 }
 
@@ -95,5 +105,7 @@ export function scrapToFeedItemJSON(
   if (options?.reactionCounts) base.reactionCounts = options.reactionCounts;
   if (options?.myReaction) base.myReaction = options.myReaction;
   if (options?.commentCount !== undefined) base.commentCount = options.commentCount;
+  if (scrap.attachments != null && Array.isArray(scrap.attachments))
+    base.attachments = scrap.attachments as unknown as AttachmentJSON[];
   return base;
 }

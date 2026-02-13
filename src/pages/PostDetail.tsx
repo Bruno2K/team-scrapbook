@@ -1,18 +1,21 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getPost } from "@/api/feed";
-import { FEED_QUERY_KEY } from "@/hooks/useFeed";
+import { FEED_QUERY_KEY, useDeleteFeedItem } from "@/hooks/useFeed";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { SidebarLeft } from "@/components/layout/SidebarLeft";
 import { SidebarRight } from "@/components/layout/SidebarRight";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { CommentList } from "@/components/feed/CommentList";
+import { toast } from "sonner";
 
 export const POST_QUERY_KEY = (id: string) => ["post", id] as const;
 
 export default function PostDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const deleteFeedItemMutation = useDeleteFeedItem();
   const { data: response, isLoading } = useQuery({
     queryKey: POST_QUERY_KEY(id ?? ""),
     queryFn: () => getPost(id!),
@@ -24,6 +27,17 @@ export default function PostDetail() {
     if (id) {
       queryClient.invalidateQueries({ queryKey: POST_QUERY_KEY(id) });
       queryClient.invalidateQueries({ queryKey: FEED_QUERY_KEY });
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await deleteFeedItemMutation.mutateAsync(postId);
+      toast.success("Postagem excluída!");
+      navigate("/");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Falha ao excluir postagem.";
+      toast.error(message);
     }
   };
 
@@ -63,7 +77,7 @@ export default function PostDetail() {
           </Link>
         </div>
         <div className="list-scroll flex-1 min-h-0 pr-1 space-y-6">
-          <FeedCard item={post} onReactionChange={invalidate} />
+          <FeedCard item={post} onReactionChange={invalidate} onDelete={() => handleDeletePost(post.id)} />
           <CommentList
             feedItemId={post.id}
             allowComments={post.allowComments !== false}

@@ -149,6 +149,7 @@ export interface PostToCommunityPayload {
   content: string;
   allowComments?: boolean;
   allowReactions?: boolean;
+  attachments?: import("@/lib/types").Attachment[];
 }
 
 export function usePostToCommunity(communityId: string) {
@@ -161,6 +162,7 @@ export function usePostToCommunity(communityId: string) {
       return postToCommunity(communityId, payload.content, {
         allowComments: payload.allowComments,
         allowReactions: payload.allowReactions,
+        attachments: payload.attachments,
       });
     },
     onSuccess: invalidate,

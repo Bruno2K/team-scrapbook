@@ -19,11 +19,14 @@ export async function listScrapsSent(fromUserId: string, limit = 50) {
   });
 }
 
+export type AttachmentInput = { url: string; type: "image" | "video" | "audio" | "document"; filename?: string };
+
 export interface CreateScrapInput {
   fromUserId: string;
   toUserId: string;
   content: string;
   reaction?: ScrapReaction;
+  attachments?: AttachmentInput[];
 }
 
 export async function createScrap(input: CreateScrapInput) {
@@ -33,6 +36,7 @@ export async function createScrap(input: CreateScrapInput) {
       toUserId: input.toUserId,
       content: input.content,
       reaction: input.reaction,
+      attachments: (input.attachments?.length ? input.attachments : undefined) as object | undefined,
     },
     include: { from: true, to: true },
   });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import type { User } from "@/lib/types";
+import { uploadFileToR2 } from "@/api/upload";
 import { usePostScrap } from "@/hooks/useScraps";
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { EmojiGifInput } from "@/components/ui/EmojiGifInput";
+import { MediaAttachmentInput } from "@/components/ui/MediaAttachmentInput";
 import { Label } from "@/components/ui/label";
 import { CLASS_EMOJIS } from "@/lib/types";
 
@@ -31,34 +33,45 @@ interface SendScrapDialogProps {
 export function SendScrapDialog({ target, open, onOpenChange }: SendScrapDialogProps) {
   const [content, setContent] = useState("");
   const [reaction, setReaction] = useState<"" | "headshot" | "heal" | "burn" | "backstab">("");
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const postScrap = usePostScrap();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!target) return;
     const trimmed = content.trim();
-    if (!trimmed) {
-      toast.error("Escreva o recado.");
+    if (!trimmed && attachmentFiles.length === 0) {
+      toast.error("Escreva o recado ou anexe uma mídia.");
       return;
     }
-    postScrap.mutate(
-      {
-        toUserId: target.id,
-        content: trimmed,
-        ...(reaction ? { reaction } : {}),
-      },
-      {
-        onSuccess: () => {
-          toast.success("Recado enviado!");
-          setContent("");
-          setReaction("");
-          onOpenChange(false);
+    try {
+      const attachments =
+        attachmentFiles.length > 0
+          ? await Promise.all(attachmentFiles.map((f) => uploadFileToR2(f, "scrap")))
+          : undefined;
+      postScrap.mutate(
+        {
+          toUserId: target.id,
+          content: trimmed,
+          ...(reaction ? { reaction } : {}),
+          ...(attachments?.length ? { attachments } : {}),
         },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : "Falha ao enviar recado.");
-        },
-      }
-    );
+        {
+          onSuccess: () => {
+            toast.success("Recado enviado!");
+            setContent("");
+            setReaction("");
+            setAttachmentFiles([]);
+            onOpenChange(false);
+          },
+          onError: (err) => {
+            toast.error(err instanceof Error ? err.message : "Falha ao enviar recado.");
+          },
+        }
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha no upload dos anexos.");
+    }
   };
 
   if (!target) return null;
@@ -103,6 +116,12 @@ export function SendScrapDialog({ target, open, onOpenChange }: SendScrapDialogP
               ))}
             </select>
           </div>
+          <MediaAttachmentInput
+            kind="scrap"
+            value={attachmentFiles}
+            onChange={setAttachmentFiles}
+            disabled={postScrap.isPending}
+          />
           <DialogFooter>
             <Button
               type="button"
@@ -115,7 +134,7 @@ export function SendScrapDialog({ target, open, onOpenChange }: SendScrapDialogP
             </Button>
             <Button
               type="submit"
-              disabled={!content.trim() || postScrap.isPending}
+              disabled={(!content.trim() && attachmentFiles.length === 0) || postScrap.isPending}
               className="bg-accent text-accent-foreground font-heading text-xs uppercase hover:bg-accent/90"
             >
               {postScrap.isPending ? "Enviando..." : "📝 Enviar recado"}

@@ -5,9 +5,11 @@ import { SidebarLeft } from "@/components/layout/SidebarLeft";
 import { SidebarRight } from "@/components/layout/SidebarRight";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { EmojiGifInput } from "@/components/ui/EmojiGifInput";
+import { MediaAttachmentInput } from "@/components/ui/MediaAttachmentInput";
 import { Switch } from "@/components/ui/switch";
 import { useQueryClient } from "@tanstack/react-query";
-import { useFeed, usePostFeed, FEED_QUERY_KEY } from "@/hooks/useFeed";
+import { uploadFileToR2 } from "@/api/upload";
+import { useFeed, usePostFeed, useDeleteFeedItem, FEED_QUERY_KEY } from "@/hooks/useFeed";
 
 // #region agent log
 const _log = (loc: string, msg: string, data: Record<string, unknown>) => {
@@ -23,9 +25,11 @@ const Index = () => {
   const queryClient = useQueryClient();
   const { feed, isLoading } = useFeed();
   const postFeed = usePostFeed();
+  const deleteFeedItem = useDeleteFeedItem();
   const [content, setContent] = useState("");
   const [allowComments, setAllowComments] = useState(true);
   const [allowReactions, setAllowReactions] = useState(true);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
   const [compactPostBox, setCompactPostBox] = useState(false);
   const compactPostBoxRef = useRef(false);
   _log("Index.tsx:mount", "Index_mount", { isLoading, feedLen: feed?.length ?? 0 });
@@ -71,22 +75,41 @@ const Index = () => {
     };
   }, []);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const trimmed = content.trim();
-    if (!trimmed) return;
-    postFeed.mutate(
-      { content: trimmed, allowComments, allowReactions },
-      {
-        onSuccess: () => {
-          setContent("");
-          toast.success("Intel enviada!");
-        },
-        onError: (err) => {
-          const message = err instanceof Error ? err.message : "Falha ao enviar. Faça login para publicar.";
-          toast.error(message);
-        },
-      }
-    );
+    if (!trimmed && attachmentFiles.length === 0) return;
+    try {
+      const attachments =
+        attachmentFiles.length > 0
+          ? await Promise.all(attachmentFiles.map((f) => uploadFileToR2(f, "feed")))
+          : undefined;
+      postFeed.mutate(
+        { content: trimmed, allowComments, allowReactions, attachments },
+        {
+          onSuccess: () => {
+            setContent("");
+            setAttachmentFiles([]);
+            toast.success("Intel enviada!");
+          },
+          onError: (err) => {
+            const message = err instanceof Error ? err.message : "Falha ao enviar. Faça login para publicar.";
+            toast.error(message);
+          },
+        }
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha no upload dos anexos.");
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await deleteFeedItem.mutateAsync(postId);
+      toast.success("Postagem excluída!");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Falha ao excluir postagem.";
+      toast.error(message);
+    }
   };
 
   return (
@@ -117,37 +140,40 @@ const Index = () => {
                 rows={3}
                 disabled={postFeed.isPending}
               />
-              <div className="rounded-md border border-border bg-muted/30 p-3 flex flex-wrap gap-6 items-center">
-                <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground w-full sm:w-auto">
-                  Opções da publicação
-                </span>
-                <label className="flex items-center gap-2.5 cursor-pointer group">
+              <div className="rounded-md border border-border bg-muted/30 px-2.5 py-2 flex items-center flex-wrap gap-3 text-[10px] text-muted-foreground">
+                <label className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0">
                   <Switch
                     checked={allowComments}
                     onCheckedChange={setAllowComments}
-                    className="data-[state=checked]:bg-accent"
+                    className="data-[state=checked]:bg-accent h-4 w-7 flex-shrink-0 [&>*]:h-3 [&>*]:w-3 [&>*]:data-[state=checked]:translate-x-3"
                   />
-                  <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                    💬 Permitir comentários
+                  <span className="group-hover:text-foreground/80 transition-colors whitespace-nowrap">
+                    💬 Comentários
                   </span>
                 </label>
-                <label className="flex items-center gap-2.5 cursor-pointer group">
+                <label className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0">
                   <Switch
                     checked={allowReactions}
                     onCheckedChange={setAllowReactions}
-                    className="data-[state=checked]:bg-accent"
+                    className="data-[state=checked]:bg-accent h-4 w-7 flex-shrink-0 [&>*]:h-3 [&>*]:w-3 [&>*]:data-[state=checked]:translate-x-3"
                   />
-                  <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                    👍 Permitir reações
+                  <span className="group-hover:text-foreground/80 transition-colors whitespace-nowrap">
+                    👍 Reações
                   </span>
                 </label>
               </div>
+<MediaAttachmentInput
+              kind="feed"
+              value={attachmentFiles}
+              onChange={setAttachmentFiles}
+              disabled={postFeed.isPending}
+            />
               <div className="flex justify-end">
                 <button
                   type="button"
                   className="px-4 py-2 bg-accent text-accent-foreground font-heading text-xs uppercase tracking-wider rounded tf-shadow-sm hover:brightness-110 transition-all disabled:opacity-50"
                   onClick={handleSubmit}
-                  disabled={!content.trim() || postFeed.isPending}
+                  disabled={(!content.trim() && attachmentFiles.length === 0) || postFeed.isPending}
                 >
                   🔥 Enviar Intel
                 </button>
@@ -167,6 +193,7 @@ const Index = () => {
                   key={item.id}
                   item={item}
                   onReactionChange={() => queryClient.invalidateQueries({ queryKey: FEED_QUERY_KEY })}
+                  onDelete={() => handleDeletePost(item.id)}
                 />
               ))}
             </div>
