@@ -27,6 +27,7 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
     { label: "Squad", icon: "⚔️", to: "/friends" },
     { label: "Scraps", icon: "📝", to: "/scraps" },
     { label: "Comunidades", icon: "🏰", to: "/communities" },
+    { label: "Conta", icon: "⚙️", to: "/settings" },
   ];
 
   return (

@@ -48,8 +48,13 @@ model User {
   level           Int            @default(1)
   avatar          String?
   online          Boolean        @default(false)
+  steamId64       String?        @unique
+  steamLinkedAt   DateTime?
+  pinnedAchievementIds Json?     @default("[]")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  steamGames      UserSteamGame[]
+  steamAchievements UserSteamAchievement[]
   feedItems       FeedItem[]
   scrapsSent      ScrapMessage[] @relation("ScrapsSent")
   scrapsReceived  ScrapMessage[] @relation("ScrapsReceived")
@@ -192,4 +197,31 @@ model CommunityMember {
   community   Community           @relation(fields: [communityId], references: [id], onDelete: Cascade)
   joinedAt    DateTime            @default(now())
   @@unique([userId, communityId])
+}
+
+model UserSteamGame {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appId          Int
+  name           String
+  iconUrl        String?
+  playtimeMinutes Int     @default(0)
+  playtime2WeeksMinutes Int @default(0)
+  lastSyncedAt  DateTime @default(now())
+  @@unique([userId, appId])
+}
+
+model UserSteamAchievement {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appId       Int
+  apiName     String
+  title       String
+  description String?
+  iconUrl     String?
+  unlockedAt  DateTime?
+  lastSyncedAt DateTime @default(now())
+  @@unique([userId, appId, apiName])
 }

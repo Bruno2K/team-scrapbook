@@ -18,6 +18,15 @@ export interface Achievement {
   description: string;
 }
 
+export interface SteamGame {
+  appId: number;
+  name: string;
+  iconUrl: string | null;
+  playtimeMinutes: number;
+  /** Minutes played in the last 2 weeks */
+  playtime2WeeksMinutes?: number;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -29,6 +38,16 @@ export interface User {
   achievements: Achievement[];
   reputation: string[];
   online: boolean;
+  /** Steam ID (64-bit) when linked */
+  steamId64?: string | null;
+  /** Steam profile URL when linked */
+  steamProfileUrl?: string | null;
+  /** Cached Steam games (with playtime) when linked */
+  steamGames?: SteamGame[];
+  /** Total playtime across all Steam games (minutes) */
+  steamTotalPlaytimeMinutes?: number;
+  /** Achievement IDs to show on profile card (default: none) */
+  pinnedAchievementIds?: string[];
 }
 
 export interface Community {
@@ -143,25 +162,26 @@ export const CLASS_EMOJIS: Record<TF2Class, string> = {
   Spy: "🗡️",
 };
 
-export const RANK_TITLES: Record<number, string> = {
-  1: "Recruta",
-  5: "Soldado",
-  10: "Cabo",
-  15: "Sargento",
-  20: "Tenente",
-  30: "Capitão",
-  40: "Major",
-  50: "Coronel",
-  60: "General",
-  99: "Saxton Hale",
-};
+/** Patentes: a cada 5 níveis sobe uma patente (nível 1–4 = Recruta, 5–9 = Soldado, etc.). */
+export const RANK_TITLES_BY_INDEX: string[] = [
+  "Recruta",   // 0 (níveis 1-4)
+  "Soldado",   // 1 (5-9)
+  "Cabo",      // 2 (10-14)
+  "Sargento", // 3 (15-19)
+  "Tenente",   // 4 (20-24)
+  "Capitão",   // 5 (25-29)
+  "Major",     // 6 (30-34)
+  "Coronel",   // 7 (35-39)
+  "General",   // 8 (40-44)
+  "Comandante", // 9 (45-49)
+  "Saxton Hale", // 10+ (50+)
+];
 
 export function getRank(level: number): string {
-  const levels = Object.keys(RANK_TITLES)
-    .map(Number)
-    .sort((a, b) => b - a);
-  for (const l of levels) {
-    if (level >= l) return RANK_TITLES[l];
-  }
-  return "Recruta";
+  if (level < 1) return RANK_TITLES_BY_INDEX[0];
+  const index = Math.min(
+    Math.floor(level / 5),
+    RANK_TITLES_BY_INDEX.length - 1
+  );
+  return RANK_TITLES_BY_INDEX[index];
 }

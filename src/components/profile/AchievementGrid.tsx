@@ -12,8 +12,12 @@ export function AchievementGrid({ achievements }: AchievementGridProps) {
         {achievements.map((ach) => (
           <Tooltip key={ach.id}>
             <TooltipTrigger asChild>
-              <div className="flex items-center justify-center w-full aspect-square rounded bg-muted border-2 border-border hover:border-accent transition-colors cursor-pointer tf-shadow-sm">
-                <span className="text-lg">{ach.icon}</span>
+              <div className="flex items-center justify-center w-full aspect-square rounded bg-muted border-2 border-border hover:border-accent transition-colors cursor-pointer tf-shadow-sm overflow-hidden">
+                {ach.icon.startsWith("http") ? (
+                  <img src={ach.icon} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-lg">{ach.icon}</span>
+                )}
               </div>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-[10px] max-w-[200px]">

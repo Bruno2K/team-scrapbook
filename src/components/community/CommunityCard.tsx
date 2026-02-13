@@ -6,8 +6,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 const MAX_AVATARS = 5;
 
 function FriendAvatar({ user }: { user: User }) {
-  const initial = user.nickname?.slice(0, 1).toUpperCase() || user.name?.slice(0, 1).toUpperCase() || "?";
-  const tooltipText = user.nickname ? `${user.name} (@${user.nickname})` : user.name;
+  const initial = (user.nickname?.slice(0, 1) ?? user.name?.slice(0, 1) ?? "?").toString().toUpperCase();
+  const tooltipText = user.nickname ? `${user.name ?? ""} (@${user.nickname})` : (user.name ?? "");
   return (
     <Tooltip>
       <TooltipTrigger asChild>
