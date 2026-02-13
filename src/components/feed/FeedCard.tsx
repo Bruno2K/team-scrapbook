@@ -70,16 +70,30 @@ export function FeedCard({ item, onReactionChange, onDelete }: FeedCardProps) {
     <div className={`tf-card border-l-4 ${borderClass} p-4 space-y-2`}>
       {/* Header */}
       <div className="flex items-center gap-2">
-        <div className={`w-8 h-8 rounded flex items-center justify-center text-lg border-2
-          ${team === "RED" ? "border-team-red bg-team-red/10" : "border-team-blu bg-team-blu/10"}`}>
-          {classEmoji}
-        </div>
+        <Link
+          to={`/profile/${user.id}`}
+          className={`w-8 h-8 rounded flex items-center justify-center text-lg border-2 overflow-hidden shrink-0
+            ${team === "RED" ? "border-team-red bg-team-red/10" : "border-team-blu bg-team-blu/10"}`}
+        >
+          {user.avatar ? (
+            <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+          ) : (
+            classEmoji
+          )}
+        </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-heading text-xs text-card-foreground truncate">{user.nickname ?? "—"}</span>
+            <Link to={`/profile/${user.id}`} className="font-heading text-xs text-card-foreground truncate hover:text-accent transition-colors">
+              {user.nickname ?? "—"}
+            </Link>
             <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${typeInfo.color}`}>
               {typeInfo.label}
             </span>
+            {item.pinnedOrder != null && item.pinnedOrder >= 1 && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-accent/20 text-accent" title="Fixado no perfil">
+                📌 Fixado
+              </span>
+            )}
             {item.type === "scrap" && item.reaction && (
               <span className="text-sm" title={item.reaction}>
                 {REACTION_EMOJI[item.reaction] ?? item.reaction}

@@ -24,6 +24,7 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
   _log("MainLayout.tsx:render", "MainLayout_mount", { path: location.pathname });
   const navItems = [
     { label: "Feed", icon: "📋", to: "/" },
+    { label: "Perfil", icon: "👤", to: "/profile" },
     { label: "Squad", icon: "⚔️", to: "/friends" },
     { label: "Scraps", icon: "📝", to: "/scraps" },
     { label: "Comunidades", icon: "🏰", to: "/communities" },

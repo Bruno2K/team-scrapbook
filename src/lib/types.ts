@@ -48,6 +48,8 @@ export interface User {
   steamTotalPlaytimeMinutes?: number;
   /** Achievement IDs to show on profile card (default: none) */
   pinnedAchievementIds?: string[];
+  /** Up to 3 post/scrap IDs pinned on profile (order = display order) */
+  pinnedPostIds?: string[];
 }
 
 export interface Community {
@@ -115,6 +117,8 @@ export interface FeedItem {
   scrapTo?: Pick<User, "id" | "nickname">;
   /** Media attachments */
   attachments?: Attachment[];
+  /** On profile feed: 1-based pinned order (1, 2, or 3) when pinned */
+  pinnedOrder?: number;
 }
 
 export interface PostComment {

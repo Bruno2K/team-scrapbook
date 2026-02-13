@@ -6,7 +6,8 @@ import { SidebarLeft } from "@/components/layout/SidebarLeft";
 import { SidebarRight } from "@/components/layout/SidebarRight";
 import { useUser, useMeQueryKey } from "@/hooks/useUser";
 import { getSteamAuthRedirectUrl, linkSteam, unlinkSteam, syncSteam } from "@/api/steam";
-import { updatePinnedAchievements } from "@/api/user";
+import { updatePinnedAchievements, updateMe } from "@/api/user";
+import { uploadFileToR2 } from "@/api/upload";
 import { isApiConfigured } from "@/api/client";
 import { ChevronDown, X } from "lucide-react";
 
@@ -36,6 +37,9 @@ export default function Settings() {
   const [achievementSearch, setAchievementSearch] = useState("");
   const [gameDropdownOpen, setGameDropdownOpen] = useState(false);
   const [myGamesSearch, setMyGamesSearch] = useState("");
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const isUserEditingRef = useRef(false);
 
   const achievements = user?.achievements ?? [];
@@ -227,6 +231,85 @@ export default function Settings() {
             {linkError}
           </div>
         )}
+
+        {/* Foto de perfil */}
+        <section className="flex-shrink-0 tf-card p-4 mb-3">
+          <h2 className="font-heading text-xs text-muted-foreground uppercase tracking-widest mb-3">
+            Foto de perfil
+          </h2>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-lg border-2 border-border overflow-hidden bg-muted flex items-center justify-center shrink-0 text-2xl">
+              {user.avatar ? (
+                <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="opacity-70">👤</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-muted-foreground mb-2">
+                Use uma imagem JPEG, PNG, GIF ou WebP (máx. 10 MB).
+              </p>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  setAvatarError(null);
+                  setAvatarLoading(true);
+                  try {
+                    const { url } = await uploadFileToR2(file, "avatar");
+                    await updateMe({ avatar: url });
+                    await queryClient.invalidateQueries({ queryKey: meKey });
+                    refetch();
+                  } catch (err) {
+                    setAvatarError(err instanceof Error ? err.message : "Falha ao enviar foto");
+                  } finally {
+                    setAvatarLoading(false);
+                  }
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={avatarLoading}
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="px-3 py-2 rounded border border-border bg-muted/50 text-sm font-heading uppercase tracking-wider hover:bg-muted disabled:opacity-50"
+                >
+                  {avatarLoading ? "Enviando…" : "Alterar foto"}
+                </button>
+                {user.avatar && (
+                  <button
+                    type="button"
+                    disabled={avatarLoading}
+                    onClick={async () => {
+                      setAvatarError(null);
+                      setAvatarLoading(true);
+                      try {
+                        await updateMe({ avatar: null });
+                        await queryClient.invalidateQueries({ queryKey: meKey });
+                        refetch();
+                      } catch (err) {
+                        setAvatarError(err instanceof Error ? err.message : "Falha ao remover foto");
+                      } finally {
+                        setAvatarLoading(false);
+                      }
+                    }}
+                    className="px-3 py-2 rounded border border-border bg-muted/50 text-sm font-heading uppercase tracking-wider hover:bg-muted disabled:opacity-50 text-muted-foreground"
+                  >
+                    Remover foto
+                  </button>
+                )}
+              </div>
+              {avatarError && (
+                <p className="text-sm text-destructive mt-2">{avatarError}</p>
+              )}
+            </div>
+          </div>
+        </section>
 
         <div className="flex-shrink-0 flex flex-wrap gap-1 p-1 bg-muted/50 rounded border border-border mb-3">
           {TABS.map((t) => (
