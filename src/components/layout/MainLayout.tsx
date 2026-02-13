@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 interface MainLayoutProps {
   sidebarLeft: ReactNode;
@@ -8,39 +8,46 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutProps) {
+  const location = useLocation();
+  const navItems = [
+    { label: "Feed", icon: "📋", to: "/" },
+    { label: "Squad", icon: "⚔️", to: "/friends" },
+    { label: "Scraps", icon: "📝", to: "/scraps" },
+    { label: "Comunidades", icon: "🏰", to: "/communities" },
+  ];
+
   return (
-    <div className="min-h-screen tf-texture">
+    <div className="h-screen flex flex-col overflow-hidden tf-texture">
       {/* Top Header */}
-      <header className="sticky top-0 z-50 border-b-[3px] border-border bg-card/95 backdrop-blur-sm">
+      <header className="flex-shrink-0 z-50 border-b-[3px] border-border bg-card/95 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="font-heading text-xl tracking-wider">
+            <Link to="/" className="font-heading text-xl tracking-wider">
               <span className="text-team-red">FORT</span>
               <span className="text-tf-beige">KUT</span>
-            </h1>
+            </Link>
             <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest hidden sm:block">
               Social Warfare Network
             </span>
           </div>
           <nav className="flex items-center gap-1">
-            {[
-              { label: "Feed", icon: "📋", to: "/", active: true },
-              { label: "Scraps", icon: "📝", to: "#", active: false },
-              { label: "Comunidades", icon: "🏰", to: "#", active: false },
-            ].map((item) => (
-              <Link
-                key={item.label}
-                to={item.to}
-                className={`px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider transition-all inline-flex items-center
-                  ${item.active
-                    ? "bg-accent text-accent-foreground tf-shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-              >
-                <span className="mr-1">{item.icon}</span>
-                <span className="hidden sm:inline">{item.label}</span>
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const active = item.to !== "#" && location.pathname === item.to;
+              return (
+                <Link
+                  key={item.label}
+                  to={item.to}
+                  className={`px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider transition-all inline-flex items-center
+                    ${active
+                      ? "bg-accent text-accent-foreground tf-shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                >
+                  <span className="mr-1">{item.icon}</span>
+                  <span className="hidden sm:inline">{item.label}</span>
+                </Link>
+              );
+            })}
             <Link
               to="/login"
               className="px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted transition-all border border-border hover:border-accent/50"
@@ -51,24 +58,22 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
         </div>
       </header>
 
-      {/* 3-Column Layout */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* Left Sidebar */}
-          <aside className="lg:col-span-3 space-y-4">
-            {sidebarLeft}
-          </aside>
+      {/* 3-Column Layout: no page scroll, each column scrolls independently */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row max-w-7xl w-full mx-auto px-4 py-4 gap-4">
+        {/* Left Sidebar */}
+        <aside className="hidden lg:flex flex-col min-w-0 w-72 flex-shrink-0 overflow-hidden">
+          {sidebarLeft}
+        </aside>
 
-          {/* Main Content */}
-          <main className="lg:col-span-6 space-y-4">
-            {children}
-          </main>
+        {/* Main Content */}
+        <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+          {children}
+        </main>
 
-          {/* Right Sidebar */}
-          <aside className="lg:col-span-3 space-y-4">
-            {sidebarRight}
-          </aside>
-        </div>
+        {/* Right Sidebar */}
+        <aside className="hidden lg:flex flex-col min-w-0 w-72 flex-shrink-0 overflow-hidden">
+          {sidebarRight}
+        </aside>
       </div>
     </div>
   );

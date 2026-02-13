@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { Community } from "@/lib/types";
 import { CLASS_EMOJIS } from "@/lib/types";
 
@@ -13,28 +14,28 @@ export function CommunityCard({ community }: CommunityCardProps) {
     : "bg-muted";
 
   return (
-    <div className="tf-card overflow-hidden">
+    <Link to={`/communities/${community.id}`} className="block tf-card overflow-hidden hover:ring-2 hover:ring-accent/50 transition-all">
       {/* Banner */}
-      <div className={`${teamGradient} px-3 py-2 flex items-center justify-between`}>
-        <span className="font-heading text-[10px] uppercase tracking-widest text-primary-foreground truncate">
+      <div className={`${teamGradient} px-4 py-2.5 flex items-center justify-between gap-2 min-h-0`}>
+        <span className="font-heading text-xs uppercase tracking-widest text-primary-foreground line-clamp-2 break-words leading-tight">
           {community.name}
         </span>
         {community.dominantClass && (
-          <span className="text-sm">{CLASS_EMOJIS[community.dominantClass]}</span>
+          <span className="text-base">{CLASS_EMOJIS[community.dominantClass]}</span>
         )}
       </div>
 
-      <div className="p-3 space-y-2">
-        <p className="text-xs text-muted-foreground">{community.description}</p>
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-accent">
+      <div className="p-4 space-y-3 overflow-hidden">
+        <p className="text-sm text-muted-foreground line-clamp-3 leading-snug break-words">{community.description}</p>
+        <div className="flex items-center justify-between gap-3 pt-0.5">
+          <span className="text-xs font-bold text-accent">
             {community.members.toLocaleString()} membros
           </span>
-          <button className="px-2 py-1 bg-accent text-accent-foreground font-heading text-[10px] uppercase rounded tf-shadow-sm hover:brightness-110 transition-all">
-            Entrar
-          </button>
+          <span className="px-3 py-1.5 bg-accent text-accent-foreground font-heading text-[10px] uppercase rounded tf-shadow-sm flex-shrink-0">
+            Ver
+          </span>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

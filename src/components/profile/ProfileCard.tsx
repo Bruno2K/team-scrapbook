@@ -18,9 +18,9 @@ export function ProfileCard({ user }: ProfileCardProps) {
   const rank = getRank(user.level);
 
   return (
-    <div className={`${cardClass} overflow-hidden`}>
+    <div className={`${cardClass} overflow-hidden max-h-full`}>
       {/* Header banner */}
-      <div className={`${gradientClass} px-4 py-3 flex items-center justify-between`}>
+      <div className={`${gradientClass} px-4 py-3 flex items-center justify-between flex-shrink-0`}>
         <span className="font-heading text-sm uppercase tracking-widest text-primary-foreground">
           Team {user.team}
         </span>
@@ -30,16 +30,16 @@ export function ProfileCard({ user }: ProfileCardProps) {
       </div>
 
       {/* Avatar + Info */}
-      <div className="p-4 space-y-3">
-        <div className="flex items-center gap-3">
+      <div className="p-4 space-y-4 min-h-0 overflow-hidden">
+        <div className="flex items-center gap-3 flex-shrink-0">
           {/* Avatar */}
-          <div className={`w-16 h-16 rounded-md border-[3px] flex items-center justify-center text-3xl
+          <div className={`w-14 h-14 rounded-lg border-2 flex items-center justify-center text-2xl flex-shrink-0
             ${user.team === "RED" ? "border-team-red bg-team-red/10" : "border-team-blu bg-team-blu/10"}`}>
             {CLASS_EMOJIS[user.mainClass]}
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-heading text-sm truncate text-card-foreground">{user.name}</h3>
-            <p className="text-xs text-muted-foreground">@{user.nickname}</p>
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <h3 className="font-heading text-sm text-card-foreground line-clamp-2 break-words leading-tight">{user.name}</h3>
+            <p className="text-xs text-muted-foreground break-all mt-0.5">@{user.nickname}</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs font-bold text-accent">{rank}</span>
               <span className="text-xs text-muted-foreground">•</span>
@@ -49,7 +49,7 @@ export function ProfileCard({ user }: ProfileCardProps) {
         </div>
 
         {/* Add to Squad button */}
-        <button className={`w-full py-2 px-4 font-heading text-xs uppercase tracking-wider rounded tf-shadow-sm
+        <button className={`w-full py-2.5 px-4 font-heading text-xs uppercase tracking-wider rounded tf-shadow-sm flex-shrink-0
           transition-all hover:translate-y-[-1px] hover:brightness-110
           ${user.team === "RED" 
             ? "bg-team-red text-primary-foreground" 
@@ -60,11 +60,11 @@ export function ProfileCard({ user }: ProfileCardProps) {
 
         {/* Reputation */}
         {user.reputation.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-2 flex-shrink-0">
             <h4 className="font-heading text-[10px] text-muted-foreground uppercase tracking-widest">
               Reputação
             </h4>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {user.reputation.map((rep) => (
                 <ReputationBadge key={rep} badge={rep} />
               ))}
@@ -74,7 +74,7 @@ export function ProfileCard({ user }: ProfileCardProps) {
 
         {/* Achievements */}
         {user.achievements.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-2 flex-shrink-0">
             <h4 className="font-heading text-[10px] text-muted-foreground uppercase tracking-widest">
               Medalhas
             </h4>

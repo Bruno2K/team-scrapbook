@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { listScrapsForUser, createScrap } from "../services/scrapService.js";
+import { listScrapsReceived, listScrapsSent, createScrap } from "../services/scrapService.js";
 import { scrapToJSON } from "../views/scrapView.js";
 
 const createScrapSchema = z.object({
@@ -9,14 +9,33 @@ const createScrapSchema = z.object({
   reaction: z.enum(["headshot", "heal", "burn", "backstab"]).optional(),
 });
 
+const filterSchema = z.enum(["received", "sent", "all"]);
+
 export async function getScraps(req: Request, res: Response) {
   if (!req.user) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
+  const filter = filterSchema.safeParse(req.query.filter).data ?? "received";
   try {
-    const items = await listScrapsForUser(req.user.id);
-    res.status(200).json(items.map(scrapToJSON));
+    if (filter === "received") {
+      const items = await listScrapsReceived(req.user.id);
+      return res.status(200).json(items.map((s) => scrapToJSON(s, "received")));
+    }
+    if (filter === "sent") {
+      const items = await listScrapsSent(req.user.id);
+      return res.status(200).json(items.map((s) => scrapToJSON(s, "sent")));
+    }
+    const [received, sent] = await Promise.all([
+      listScrapsReceived(req.user.id),
+      listScrapsSent(req.user.id),
+    ]);
+    const receivedJson = received.map((s) => scrapToJSON(s, "received"));
+    const sentJson = sent.map((s) => scrapToJSON(s, "sent"));
+    const combined = [...receivedJson, ...sentJson].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+    return res.status(200).json(combined);
   } catch {
     res.status(500).json({ message: "Erro ao carregar recados" });
   }
@@ -39,7 +58,7 @@ export async function postScrap(req: Request, res: Response) {
       content: parsed.data.content,
       reaction: parsed.data.reaction,
     });
-    res.status(201).json(scrapToJSON(scrap));
+    res.status(201).json(scrapToJSON(scrap, "sent"));
   } catch {
     res.status(500).json({ message: "Erro ao enviar recado" });
   }

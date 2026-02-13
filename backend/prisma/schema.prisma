@@ -39,29 +39,57 @@ enum ScrapReaction {
 }
 
 model User {
-  id             String        @id @default(cuid())
-  name           String
-  nickname       String        @unique
-  passwordHash   String
-  team           Team          @default(RED)
-  mainClass      TF2Class      @default(Scout)
-  level          Int           @default(1)
-  avatar         String?
-  online         Boolean       @default(false)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  feedItems      FeedItem[]
-  scrapsSent     ScrapMessage[] @relation("ScrapsSent")
-  scrapsReceived ScrapMessage[] @relation("ScrapsReceived")
+  id              String         @id @default(cuid())
+  name            String
+  nickname        String         @unique
+  passwordHash    String
+  team            Team           @default(RED)
+  mainClass       TF2Class       @default(Scout)
+  level           Int            @default(1)
+  avatar          String?
+  online          Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  feedItems       FeedItem[]
+  scrapsSent      ScrapMessage[] @relation("ScrapsSent")
+  scrapsReceived  ScrapMessage[] @relation("ScrapsReceived")
+  friendshipsAs1  Friendship[]   @relation("FriendshipUser1")
+  friendshipsAs2  Friendship[]   @relation("FriendshipUser2")
+  blockedUsers    BlockedUser[]     @relation("BlockedUserBlocker")
+  blockedBy       BlockedUser[]     @relation("BlockedUserBlocked")
+  communityMembers CommunityMember[]
+  communitiesOwned  Community[]         @relation("CommunityOwner")
+}
+
+model Friendship {
+  id       String @id @default(cuid())
+  user1Id  String
+  user2Id  String
+  user1    User   @relation("FriendshipUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2    User   @relation("FriendshipUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([user1Id, user2Id])
+}
+
+model BlockedUser {
+  id         String   @id @default(cuid())
+  blockerId  String
+  blockedId  String
+  blocker    User     @relation("BlockedUserBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked    User     @relation("BlockedUserBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  @@unique([blockerId, blockedId])
 }
 
 model FeedItem {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  content   String
-  type      FeedType @default(post)
-  createdAt DateTime @default(now())
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content     String
+  type        FeedType  @default(post)
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
 }
 
 model ScrapMessage {
@@ -75,12 +103,32 @@ model ScrapMessage {
   createdAt  DateTime      @default(now())
 }
 
+enum CommunityMemberRole {
+  MEMBER
+  ADMIN
+}
+
 model Community {
-  id            String    @id @default(cuid())
+  id            String           @id @default(cuid())
   name          String
   description   String
-  memberCount   Int       @default(0)
+  memberCount   Int              @default(0)
   dominantClass TF2Class?
   team          Team?
-  createdAt     DateTime  @default(now())
+  ownerId       String?
+  owner         User?            @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  createdAt     DateTime        @default(now())
+  members       CommunityMember[]
+  feedItems     FeedItem[]
+}
+
+model CommunityMember {
+  id          String              @id @default(cuid())
+  userId      String
+  communityId String
+  role        CommunityMemberRole @default(MEMBER)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  community   Community           @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime            @default(now())
+  @@unique([userId, communityId])
 }

@@ -4,6 +4,45 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Scroll container: use inside flex layout (flex-1 min-h-0), scroll inside the box */
+.list-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+/* Thin scrollbar for list-scroll and sidebar */
+.list-scroll::-webkit-scrollbar,
+.friends-list-scroll::-webkit-scrollbar,
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.list-scroll::-webkit-scrollbar-track,
+.friends-list-scroll::-webkit-scrollbar-track,
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.list-scroll::-webkit-scrollbar-thumb,
+.friends-list-scroll::-webkit-scrollbar-thumb,
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.25);
+  border-radius: 3px;
+}
+.list-scroll::-webkit-scrollbar-thumb:hover,
+.friends-list-scroll::-webkit-scrollbar-thumb:hover,
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.4);
+}
+
+/* Legacy: fixed max-height when not in flex context */
+.friends-list-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+
 @layer base {
   :root {
     /* TF2 Dark Military Theme */
@@ -65,6 +104,11 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
   }
 
   body {

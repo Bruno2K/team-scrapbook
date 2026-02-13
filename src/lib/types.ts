@@ -40,6 +40,18 @@ export interface Community {
   team?: Team;
 }
 
+export interface CommunityDetail extends Community {
+  isMember: boolean;
+  isAdmin: boolean;
+  owner?: { id: string; nickname: string };
+}
+
+export interface CommunityMemberRole {
+  user: User;
+  role: "MEMBER" | "ADMIN";
+  joinedAt: string;
+}
+
 export interface FeedItem {
   id: string;
   user: User;
@@ -48,12 +60,16 @@ export interface FeedItem {
   type: "post" | "achievement" | "community" | "scrap";
 }
 
+export type ScrapFilter = "received" | "sent" | "all";
+
 export interface ScrapMessage {
   id: string;
   from: User;
+  to?: User;
   content: string;
   timestamp: string;
   reaction?: "headshot" | "heal" | "burn" | "backstab";
+  direction?: "sent" | "received";
 }
 
 export type ReputationBadge =
