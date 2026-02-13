@@ -37,3 +37,16 @@ export async function createScrap(input: CreateScrapInput) {
     include: { from: true, to: true },
   });
 }
+
+export async function getScrapById(scrapId: string, userId?: string) {
+  const scrap = await prisma.scrapMessage.findUnique({
+    where: { id: scrapId },
+    include: { from: true, to: true },
+  });
+  if (!scrap) return null;
+  // Verificar se o usuário tem acesso ao scrap
+  if (userId && scrap.fromUserId !== userId && scrap.toUserId !== userId) {
+    return null;
+  }
+  return scrap;
+}

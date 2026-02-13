@@ -65,7 +65,7 @@ export function GifPicker({ onInsert }: { onInsert: (url: string) => void }) {
           {loading ? "…" : "Buscar"}
         </Button>
       </div>
-      <div className="overflow-y-auto p-2 flex-1 min-h-0">
+      <div className="overflow-y-auto p-2 flex-1 min-h-0 scroll-thin max-h-[calc(70vh-140px)]">
         {results.length > 0 ? (
           <div className="grid grid-cols-2 gap-1">
             {results.map((src) => (

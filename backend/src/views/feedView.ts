@@ -72,7 +72,13 @@ export function feedItemToJSON(
 
 export function scrapToFeedItemJSON(
   scrap: ScrapWithFrom | ScrapWithFromTo,
-  options?: { direction?: "sent" | "received"; toUser?: UserJSON }
+  options?: {
+    direction?: "sent" | "received";
+    toUser?: UserJSON;
+    reactionCounts?: ReactionCountsJSON;
+    myReaction?: string;
+    commentCount?: number;
+  }
 ): FeedItemJSON {
   const base: FeedItemJSON = {
     id: scrap.id,
@@ -81,8 +87,13 @@ export function scrapToFeedItemJSON(
     timestamp: scrap.createdAt.toISOString(),
     type: "scrap",
     reaction: scrap.reaction ?? undefined,
+    allowReactions: true, // Scraps sempre permitem reações
+    allowComments: true, // Scraps agora têm comentários
   };
   if (options?.direction) base.scrapDirection = options.direction;
   if (options?.toUser) base.scrapTo = options.toUser;
+  if (options?.reactionCounts) base.reactionCounts = options.reactionCounts;
+  if (options?.myReaction) base.myReaction = options.myReaction;
+  if (options?.commentCount !== undefined) base.commentCount = options.commentCount;
   return base;
 }

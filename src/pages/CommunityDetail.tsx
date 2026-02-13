@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import type { User } from "@/lib/types";
 import { CLASS_EMOJIS } from "@/lib/types";
@@ -48,13 +48,94 @@ export default function CommunityDetail() {
   const [postContent, setPostContent] = useState("");
   const [allowComments, setAllowComments] = useState(true);
   const [allowReactions, setAllowReactions] = useState(true);
+  const [compactPostBox, setCompactPostBox] = useState(false);
+  const compactPostBoxRef = useRef(false);
+  const lastClientHeightRef = useRef(0);
 
   useEffect(() => {
     if (location.hash === "#post" && community?.isMember) {
-      const el = document.getElementById("post");
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Aguardar um pouco para garantir que o DOM está renderizado
+      const timeoutId = setTimeout(() => {
+        const el = document.getElementById("post");
+        if (el) {
+          // Scroll apenas se não estiver visível
+          const rect = el.getBoundingClientRect();
+          const isVisible = rect.top >= 0 && rect.top <= window.innerHeight;
+          if (!isVisible) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
     }
   }, [location.hash, community?.isMember]);
+
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      const listEl = document.getElementById("community-posts-scroll") as HTMLDivElement | null;
+      if (!listEl) return;
+
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrolled = listEl.scrollTop ?? 0;
+          const clientHeight = listEl.clientHeight;
+
+          // #region agent log
+          fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:handleScroll-raf',message:'scroll_event_v2',data:{scrollTop:scrolled,clientHeight,lastClientHeight:lastClientHeightRef.current,maxScroll:listEl.scrollHeight-clientHeight,compactRef:compactPostBoxRef.current},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
+          // #endregion
+
+          // Detectar se o container está redimensionando (animação CSS em progresso)
+          // Durante a animação de collapse/expand, clientHeight muda frame a frame.
+          // Ignorar eventos de scroll durante esse período para evitar o loop.
+          const isResizing = lastClientHeightRef.current !== 0 && Math.abs(clientHeight - lastClientHeightRef.current) > 2;
+          lastClientHeightRef.current = clientHeight;
+
+          if (isResizing) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:skip-resize',message:'SKIPPED_RESIZING',data:{scrolled,clientHeight,isResizing},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
+            // #endregion
+            ticking = false;
+            return;
+          }
+
+          const shouldBeCompact = scrolled > 50;
+          const shouldExpand = scrolled < 30;
+
+          if (shouldBeCompact && !compactPostBoxRef.current) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:setCompact',message:'COMPACT_ON_v2',data:{scrolled,clientHeight},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
+            // #endregion
+            compactPostBoxRef.current = true;
+            setCompactPostBox(true);
+          } else if (shouldExpand && compactPostBoxRef.current) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:setExpand',message:'COMPACT_OFF_v2',data:{scrolled,clientHeight},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
+            // #endregion
+            compactPostBoxRef.current = false;
+            setCompactPostBox(false);
+          }
+
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    const listEl = document.getElementById("community-posts-scroll") as HTMLDivElement | null;
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:attach-listener',message:'attaching_scroll_listener_v2',data:{elementFound:!!listEl,postsLoading},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
+    // #endregion
+    if (listEl) {
+      listEl.addEventListener("scroll", handleScroll, { passive: true });
+    }
+    return () => {
+      if (listEl) {
+        listEl.removeEventListener("scroll", handleScroll);
+      }
+    };
+  }, [postsLoading]);
 
   const handleDelete = async () => {
     if (!id) return;
@@ -184,54 +265,68 @@ export default function CommunityDetail() {
               Publicações
             </h2>
             {community.isMember && (
-              <form id="post" onSubmit={handlePost} className="flex-shrink-0 tf-card p-4 mb-2 scroll-mt-4">
+              <form
+                id="post"
+                onSubmit={handlePost}
+                className={`flex-shrink-0 tf-card mb-2 scroll-mt-4 transition-all duration-200 ${
+                  compactPostBox ? "p-2" : "p-4"
+                }`}
+              >
                 <label className="block font-heading text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
                   ✏️ Nova publicação
                 </label>
-                <EmojiGifInput
-                  value={postContent}
-                  onChange={setPostContent}
-                  placeholder="O que está acontecendo na comunidade?"
-                  rows={3}
-                  disabled={postMutation.isPending}
-                />
-                <div className="rounded-md border border-border bg-muted/30 p-3 flex flex-wrap gap-6 items-center my-2">
-                  <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground w-full sm:w-auto">
-                    Opções da publicação
-                  </span>
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <Switch
-                      checked={allowComments}
-                      onCheckedChange={setAllowComments}
-                      className="data-[state=checked]:bg-accent"
+                <div
+                  className={`transition-all duration-200 overflow-hidden ${
+                    compactPostBox ? "max-h-0 opacity-0" : "max-h-[1000px] opacity-100"
+                  }`}
+                >
+                  <div className="space-y-3">
+                    <EmojiGifInput
+                      value={postContent}
+                      onChange={setPostContent}
+                      placeholder="O que está acontecendo na comunidade?"
+                      rows={3}
+                      disabled={postMutation.isPending}
                     />
-                    <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                      💬 Permitir comentários
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2.5 cursor-pointer group">
-                    <Switch
-                      checked={allowReactions}
-                      onCheckedChange={setAllowReactions}
-                      className="data-[state=checked]:bg-accent"
-                    />
-                    <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                      👍 Permitir reações
-                    </span>
-                  </label>
-                </div>
-                <div className="flex justify-end mt-2">
-                  <button
-                    type="submit"
-                    disabled={postMutation.isPending || !postContent.trim()}
-                    className="px-4 py-2 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground hover:brightness-110 disabled:opacity-50 transition-all"
-                  >
-                    {postMutation.isPending ? "Enviando…" : "Publicar"}
-                  </button>
+                    <div className="rounded-md border border-border bg-muted/30 p-3 flex flex-wrap gap-6 items-center">
+                      <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground w-full sm:w-auto">
+                        Opções da publicação
+                      </span>
+                      <label className="flex items-center gap-2.5 cursor-pointer group">
+                        <Switch
+                          checked={allowComments}
+                          onCheckedChange={setAllowComments}
+                          className="data-[state=checked]:bg-accent"
+                        />
+                        <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
+                          💬 Permitir comentários
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2.5 cursor-pointer group">
+                        <Switch
+                          checked={allowReactions}
+                          onCheckedChange={setAllowReactions}
+                          className="data-[state=checked]:bg-accent"
+                        />
+                        <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
+                          👍 Permitir reações
+                        </span>
+                      </label>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={postMutation.isPending || !postContent.trim()}
+                        className="px-4 py-2 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground hover:brightness-110 disabled:opacity-50 transition-all"
+                      >
+                        {postMutation.isPending ? "Enviando…" : "Publicar"}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </form>
             )}
-            <div className="list-scroll pr-1">
+            <div id="community-posts-scroll" className="list-scroll flex-1 pr-1">
               {postsLoading ? (
                 <p className="text-muted-foreground text-sm">Carregando…</p>
               ) : posts.length === 0 ? (

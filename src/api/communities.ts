@@ -51,6 +51,16 @@ export async function getRecommendedCommunities(): Promise<Community[]> {
   }
 }
 
+export async function getHypeCommunities(): Promise<Community[]> {
+  if (!isApiConfigured()) return MOCK_COMMUNITIES;
+  try {
+    return await apiRequest<Community[]>("/communities/hype");
+  } catch {
+    // Em caso de erro, volta para a lista padrão
+    return MOCK_COMMUNITIES;
+  }
+}
+
 export async function getCommunity(id: string): Promise<CommunityDetail | null> {
   if (!isApiConfigured()) return null;
   try {

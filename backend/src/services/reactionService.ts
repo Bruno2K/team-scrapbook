@@ -133,3 +133,57 @@ export async function removeCommentReaction(commentId: string, userId: string): 
   });
   return deleted.count > 0;
 }
+
+// Scrap reactions
+export function getScrapReactionCounts(scrapId: string): Promise<Record<ScrapReaction, number>> {
+  return prisma.scrapMessageReaction
+    .groupBy({
+      by: ["reaction"],
+      where: { scrapId },
+      _count: { reaction: true },
+    })
+    .then((groups) => {
+      const counts = { ...emptyCounts() };
+      for (const g of groups) counts[g.reaction] = g._count.reaction;
+      return counts as Record<ScrapReaction, number>;
+    });
+}
+
+export function getMyScrapReaction(scrapId: string, userId: string): Promise<ScrapReaction | null> {
+  return prisma.scrapMessageReaction
+    .findUnique({
+      where: { scrapId_userId: { scrapId, userId } },
+      select: { reaction: true },
+    })
+    .then((r) => r?.reaction ?? null);
+}
+
+export async function setScrapReaction(
+  scrapId: string,
+  userId: string,
+  reaction: ScrapReaction
+): Promise<boolean> {
+  // Verificar se o scrap existe e se o usuário tem acesso
+  const scrap = await prisma.scrapMessage.findUnique({
+    where: { id: scrapId },
+    select: { fromUserId: true, toUserId: true },
+  });
+  if (!scrap) return false;
+  // Ambos (remetente e destinatário) podem reagir
+  if (scrap.fromUserId !== userId && scrap.toUserId !== userId) return false;
+  if (!REACTIONS.includes(reaction)) return false;
+
+  await prisma.scrapMessageReaction.upsert({
+    where: { scrapId_userId: { scrapId, userId } },
+    create: { scrapId, userId, reaction },
+    update: { reaction },
+  });
+  return true;
+}
+
+export async function removeScrapReaction(scrapId: string, userId: string): Promise<boolean> {
+  const deleted = await prisma.scrapMessageReaction.deleteMany({
+    where: { scrapId, userId },
+  });
+  return deleted.count > 0;
+}

@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -34,16 +35,61 @@ const App = () => (
       <ErrorBoundary>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={(_appLog("App.tsx:route", "router_render_index", {}), <Index />)} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/scraps" element={<Scraps />} />
-          <Route path="/friends" element={<Friends />} />
-          <Route path="/communities" element={<Communities />} />
-          <Route path="/communities/:id" element={<CommunityDetail />} />
-          <Route path="/post/:id" element={<PostDetail />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
+            <Route
+              path="/"
+              element={
+                (_appLog("App.tsx:route", "router_render_index", {}),
+                (
+                  <ProtectedRoute>
+                    <Index />
+                  </ProtectedRoute>
+                ))
+              }
+            />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route
+              path="/scraps"
+              element={
+                <ProtectedRoute>
+                  <Scraps />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/friends"
+              element={
+                <ProtectedRoute>
+                  <Friends />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/communities"
+              element={
+                <ProtectedRoute>
+                  <Communities />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/communities/:id"
+              element={
+                <ProtectedRoute>
+                  <CommunityDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/post/:id"
+              element={
+                <ProtectedRoute>
+                  <PostDetail />
+                </ProtectedRoute>
+              }
+            />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </ErrorBoundary>

@@ -237,6 +237,86 @@ export async function listCommunityMembers(communityId: string) {
   });
 }
 
+/** Communities with the most posts in the last N hours (default: 24). */
+export async function listHypeCommunities(options: {
+  userId?: string;
+  limit?: number;
+  sinceHours?: number;
+} = {}): Promise<CommunityWithMeta[]> {
+  const { userId, limit = 20, sinceHours = 24 } = options;
+  const since = new Date(Date.now() - sinceHours * 60 * 60 * 1000);
+
+  // Group feed items by community in the given time window
+  const grouped = await prisma.feedItem.groupBy({
+    where: {
+      communityId: { not: null },
+      createdAt: { gte: since },
+    },
+    by: ["communityId"],
+    _count: { id: true },
+  });
+
+  // Sort by count descending and take top N
+  const sorted = grouped
+    .filter((g) => g.communityId !== null)
+    .sort((a, b) => (b._count.id ?? 0) - (a._count.id ?? 0))
+    .slice(0, limit);
+
+  const communityIds = sorted
+    .map((g) => g.communityId)
+    .filter((id): id is string => Boolean(id));
+
+  if (communityIds.length === 0) {
+    return [];
+  }
+
+  const communities = await prisma.community.findMany({
+    where: { id: { in: communityIds } },
+  });
+
+  const byId = new Map(communities.map((c) => [c.id, c]));
+
+  const result: CommunityWithMeta[] = await Promise.all(
+    communityIds.map(async (id) => {
+      const c = byId.get(id);
+      if (!c) return null;
+
+      if (userId) {
+        const [membership, friendsInCommunity] = await Promise.all([
+          getMember(userId, c.id),
+          getFriendsInCommunity(userId, c.id),
+        ]);
+        return {
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          memberCount: c.memberCount,
+          dominantClass: c.dominantClass,
+          team: c.team,
+          ownerId: c.ownerId,
+          isMember: !!membership,
+          friendsInCommunity,
+        };
+      }
+
+      return {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        memberCount: c.memberCount,
+        dominantClass: c.dominantClass,
+        team: c.team,
+        ownerId: c.ownerId,
+        isMember: false,
+        friendsInCommunity: [],
+      };
+    })
+  );
+
+  // Filter out any nulls (shouldn't normally happen) while preserving order by hype
+  return result.filter((c): c is CommunityWithMeta => c !== null);
+}
+
 export async function removeMember(communityId: string, targetUserId: string, actorUserId: string): Promise<boolean> {
   const community = await prisma.community.findUnique({
     where: { id: communityId },

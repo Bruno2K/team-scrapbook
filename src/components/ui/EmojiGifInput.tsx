@@ -125,8 +125,8 @@ export function EmojiGifInput({
               😀 Emoji
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-2" align="start">
-            <div className="grid grid-cols-6 gap-0.5 max-h-40 overflow-y-auto">
+          <PopoverContent className="w-auto p-2 max-h-56 overflow-y-auto" align="start">
+            <div className="grid grid-cols-6 gap-0.5">
               {EMOJI_LIST.map((emoji) => (
                 <button
                   key={emoji}
@@ -169,8 +169,8 @@ export function EmojiGifInput({
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
-        className="w-full rounded border-2 border-border bg-background px-3 py-2 text-sm resize-none placeholder:text-muted-foreground focus:border-accent focus:outline-none min-h-0 overflow-y-hidden"
-        style={{ maxHeight: `${maxHeight}px` }}
+        className="w-full rounded border-2 border-border bg-background px-3 py-2 text-sm resize-none placeholder:text-muted-foreground focus:border-accent focus:outline-none min-h-0 scroll-thin"
+        style={{ maxHeight: `${maxHeight}px`, overflowY: "auto" }}
       />
       {media.length > 0 && (
         <div className="rounded border border-border bg-muted/30 p-2 mt-1 space-y-2">

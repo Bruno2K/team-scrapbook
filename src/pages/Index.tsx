@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { SidebarLeft } from "@/components/layout/SidebarLeft";
@@ -26,7 +26,50 @@ const Index = () => {
   const [content, setContent] = useState("");
   const [allowComments, setAllowComments] = useState(true);
   const [allowReactions, setAllowReactions] = useState(true);
+  const [compactPostBox, setCompactPostBox] = useState(false);
+  const compactPostBoxRef = useRef(false);
   _log("Index.tsx:mount", "Index_mount", { isLoading, feedLen: feed?.length ?? 0 });
+
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      const listEl = document.querySelector(".list-scroll") as HTMLDivElement | null;
+      if (!listEl) return;
+
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const scrolled = listEl.scrollTop ?? 0;
+          
+          // Zona de histerese: encolhe aos 50px, expande aos 30px
+          // Isso evita mudanças muito frequentes quando está próximo do threshold
+          const shouldBeCompact = scrolled > 50;
+          const shouldExpand = scrolled < 30;
+          
+          if (shouldBeCompact && !compactPostBoxRef.current) {
+            compactPostBoxRef.current = true;
+            setCompactPostBox(true);
+          } else if (shouldExpand && compactPostBoxRef.current) {
+            compactPostBoxRef.current = false;
+            setCompactPostBox(false);
+          }
+          
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    const listEl = document.querySelector(".list-scroll");
+    if (listEl) {
+      listEl.addEventListener("scroll", handleScroll, { passive: true });
+    }
+    return () => {
+      if (listEl) {
+        listEl.removeEventListener("scroll", handleScroll);
+      }
+    };
+  }, []);
 
   const handleSubmit = () => {
     const trimmed = content.trim();
@@ -53,51 +96,63 @@ const Index = () => {
     >
       <div className="flex flex-col min-h-0 h-full overflow-hidden">
         {/* Post input */}
-        <div className="flex-shrink-0 tf-card p-4 space-y-3">
+        <div
+          className={`flex-shrink-0 tf-card transition-all duration-200 ${
+            compactPostBox ? "p-2" : "p-4 space-y-3"
+          }`}
+        >
           <h3 className="font-heading text-xs text-muted-foreground uppercase tracking-widest">
             📡 Transmissão de Campo
           </h3>
-          <EmojiGifInput
-            value={content}
-            onChange={setContent}
-            placeholder="Relate sua última batalha, soldado..."
-            rows={3}
-            disabled={postFeed.isPending}
-          />
-          <div className="rounded-md border border-border bg-muted/30 p-3 flex flex-wrap gap-6 items-center">
-            <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground w-full sm:w-auto">
-              Opções da publicação
-            </span>
-            <label className="flex items-center gap-2.5 cursor-pointer group">
-              <Switch
-                checked={allowComments}
-                onCheckedChange={setAllowComments}
-                className="data-[state=checked]:bg-accent"
+          <div
+            className={`transition-all duration-200 overflow-hidden ${
+              compactPostBox ? "max-h-0 opacity-0" : "max-h-[1000px] opacity-100"
+            }`}
+          >
+            <div className="space-y-3">
+              <EmojiGifInput
+                value={content}
+                onChange={setContent}
+                placeholder="Relate sua última batalha, soldado..."
+                rows={3}
+                disabled={postFeed.isPending}
               />
-              <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                💬 Permitir comentários
-              </span>
-            </label>
-            <label className="flex items-center gap-2.5 cursor-pointer group">
-              <Switch
-                checked={allowReactions}
-                onCheckedChange={setAllowReactions}
-                className="data-[state=checked]:bg-accent"
-              />
-              <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                👍 Permitir reações
-              </span>
-            </label>
-          </div>
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="px-4 py-2 bg-accent text-accent-foreground font-heading text-xs uppercase tracking-wider rounded tf-shadow-sm hover:brightness-110 transition-all disabled:opacity-50"
-              onClick={handleSubmit}
-              disabled={!content.trim() || postFeed.isPending}
-            >
-              🔥 Enviar Intel
-            </button>
+              <div className="rounded-md border border-border bg-muted/30 p-3 flex flex-wrap gap-6 items-center">
+                <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground w-full sm:w-auto">
+                  Opções da publicação
+                </span>
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <Switch
+                    checked={allowComments}
+                    onCheckedChange={setAllowComments}
+                    className="data-[state=checked]:bg-accent"
+                  />
+                  <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
+                    💬 Permitir comentários
+                  </span>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <Switch
+                    checked={allowReactions}
+                    onCheckedChange={setAllowReactions}
+                    className="data-[state=checked]:bg-accent"
+                  />
+                  <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
+                    👍 Permitir reações
+                  </span>
+                </label>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-accent text-accent-foreground font-heading text-xs uppercase tracking-wider rounded tf-shadow-sm hover:brightness-110 transition-all disabled:opacity-50"
+                  onClick={handleSubmit}
+                  disabled={!content.trim() || postFeed.isPending}
+                >
+                  🔥 Enviar Intel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 

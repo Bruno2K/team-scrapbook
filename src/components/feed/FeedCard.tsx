@@ -4,6 +4,7 @@ import { ContentWithMedia } from "@/components/ui/ContentWithMedia";
 import { setPostReaction, removePostReaction } from "@/api/reactions";
 import { playReactionSound } from "@/lib/sounds";
 import { Link } from "react-router-dom";
+import { formatTimestamp } from "@/lib/utils";
 
 // #region agent log
 const _log = (loc: string, msg: string, data: Record<string, unknown>) => {
@@ -51,6 +52,8 @@ export function FeedCard({ item, onReactionChange }: FeedCardProps) {
   const typeInfo = TYPE_LABELS[item.type] || TYPE_LABELS.post;
   const classEmoji = user.mainClass && CLASS_EMOJIS[user.mainClass as keyof typeof CLASS_EMOJIS] ? CLASS_EMOJIS[user.mainClass as keyof typeof CLASS_EMOJIS] : "👤";
 
+  const isScrap = item.type === "scrap";
+
   return (
     <div className={`tf-card border-l-4 ${borderClass} p-4 space-y-2`}>
       {/* Header */}
@@ -72,7 +75,9 @@ export function FeedCard({ item, onReactionChange }: FeedCardProps) {
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] text-muted-foreground">{item.timestamp}</span>
+            <span className="text-[10px] text-muted-foreground">
+              {formatTimestamp(item.timestamp)}
+            </span>
             {item.type === "community" && item.community && (
               <Link
                 to={`/communities/${item.community.id}`}
@@ -137,6 +142,14 @@ export function FeedCard({ item, onReactionChange }: FeedCardProps) {
           )}
           Ver post
         </Link>
+        {isScrap && (
+          <Link
+            to={`/post/${item.id}`}
+            className="text-[10px] font-bold uppercase text-accent hover:text-tf-yellow-light transition-colors flex items-center gap-1.5"
+          >
+            Responder
+          </Link>
+        )}
       </div>
     </div>
   );

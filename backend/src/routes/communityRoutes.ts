@@ -3,6 +3,7 @@ import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import {
   getCommunities,
   getRecommendedCommunities,
+  getHypeCommunities,
   getCommunity,
   createCommunity,
   updateCommunity,
@@ -19,6 +20,7 @@ const router = Router();
 
 router.get("/", optionalAuthMiddleware, getCommunities);
 router.get("/recommendations", optionalAuthMiddleware, getRecommendedCommunities);
+router.get("/hype", optionalAuthMiddleware, getHypeCommunities);
 router.get("/:id", optionalAuthMiddleware, getCommunity);
 router.get("/:id/members", getCommunityMembers);
 router.get("/:id/posts", getCommunityPosts);

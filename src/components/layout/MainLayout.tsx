@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { logout, getStoredToken } from "@/api/auth";
 
 // #region agent log
 const _log = (loc: string, msg: string, data: Record<string, unknown>) => {
@@ -19,6 +20,7 @@ interface MainLayoutProps {
 
 export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   _log("MainLayout.tsx:render", "MainLayout_mount", { path: location.pathname });
   const navItems = [
     { label: "Feed", icon: "📋", to: "/" },
@@ -59,12 +61,25 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
                 </Link>
               );
             })}
-            <Link
-              to="/login"
-              className="px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted transition-all border border-border hover:border-accent/50"
-            >
-              🔐 Entrar
-            </Link>
+            {getStoredToken() ? (
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  navigate("/login", { replace: true });
+                }}
+                className="px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted transition-all border border-border hover:border-accent/50"
+              >
+                🚪 Sair
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted transition-all border border-border hover:border-accent/50"
+              >
+                🔐 Entrar
+              </Link>
+            )}
           </nav>
         </div>
       </header>

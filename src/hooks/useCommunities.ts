@@ -3,6 +3,7 @@ import {
   getCommunities,
   getMyCommunities,
   getRecommendedCommunities,
+  getHypeCommunities,
   getCommunity,
   getCommunityMembers,
   getCommunityPosts,
@@ -41,6 +42,14 @@ export function useRecommendedCommunities() {
   const { data: communities = [], isLoading, error } = useQuery({
     queryKey: [...COMMUNITIES_QUERY_KEY, "recommendations"],
     queryFn: getRecommendedCommunities,
+  });
+  return { communities, isLoading, error };
+}
+
+export function useHypeCommunities() {
+  const { data: communities = [], isLoading, error } = useQuery({
+    queryKey: [...COMMUNITIES_QUERY_KEY, "hype"],
+    queryFn: getHypeCommunities,
   });
   return { communities, isLoading, error };
 }

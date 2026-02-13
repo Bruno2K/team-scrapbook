@@ -12,6 +12,7 @@ import {
   listCommunities,
   listCommunitiesWhereMember,
   listRecommendedCommunities,
+  listHypeCommunities,
   getCommunityById,
   getMember,
   canManageCommunity,
@@ -63,6 +64,16 @@ export async function getRecommendedCommunities(req: Request, res: Response) {
     res.status(200).json(list.map(communityWithMetaToJSON));
   } catch {
     res.status(500).json({ message: "Erro ao carregar recomendações" });
+  }
+}
+
+export async function getHypeCommunities(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    const list = await listHypeCommunities({ userId, limit: 20 });
+    res.status(200).json(list.map(communityWithMetaToJSON));
+  } catch {
+    res.status(500).json({ message: "Erro ao carregar comunidades em hype" });
   }
 }
 

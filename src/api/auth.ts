@@ -53,6 +53,10 @@ export async function login(input: LoginInput): Promise<AuthResponse> {
   return res;
 }
 
+export function logout(): void {
+  clearStoredToken();
+}
+
 export interface RegisterInput {
   name: string;
   nickname: string;

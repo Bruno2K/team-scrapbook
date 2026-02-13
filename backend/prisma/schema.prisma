@@ -62,6 +62,7 @@ model User {
   postComments    PostComment[]
   feedItemReactions FeedItemReaction[]
   commentReactions  CommentReaction[]
+  scrapMessageReactions ScrapMessageReaction[]
 }
 
 model Friendship {
@@ -101,8 +102,10 @@ model FeedItem {
 
 model PostComment {
   id         String        @id @default(cuid())
-  feedItemId String
-  feedItem   FeedItem      @relation(fields: [feedItemId], references: [id], onDelete: Cascade)
+  feedItemId String?
+  feedItem   FeedItem?     @relation(fields: [feedItemId], references: [id], onDelete: Cascade)
+  scrapId    String?
+  scrap      ScrapMessage? @relation(fields: [scrapId], references: [id], onDelete: Cascade)
   parentId   String?
   parent     PostComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies    PostComment[] @relation("CommentReplies")
@@ -144,6 +147,19 @@ model ScrapMessage {
   content    String
   reaction   ScrapReaction?
   createdAt  DateTime      @default(now())
+  scrapReactions ScrapMessageReaction[]
+  comments   PostComment[]
+}
+
+model ScrapMessageReaction {
+  id        String        @id @default(cuid())
+  scrapId   String
+  scrap     ScrapMessage  @relation(fields: [scrapId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reaction  ScrapReaction
+  createdAt DateTime      @default(now())
+  @@unique([scrapId, userId])
 }
 
 enum CommunityMemberRole {

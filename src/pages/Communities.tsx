@@ -5,17 +5,18 @@ import { SidebarLeft } from "@/components/layout/SidebarLeft";
 import { SidebarRight } from "@/components/layout/SidebarRight";
 import { CommunityCard } from "@/components/community/CommunityCard";
 import { CreateCommunityModal } from "@/components/community/CreateCommunityModal";
-import { useCommunities, useMyCommunities, useRecommendedCommunities, useCreateCommunity } from "@/hooks/useCommunities";
+import { useCommunities, useMyCommunities, useRecommendedCommunities, useHypeCommunities, useCreateCommunity } from "@/hooks/useCommunities";
 import type { Community } from "@/lib/types";
 import { getStoredToken } from "@/api/auth";
 
 const TABS = [
   { id: "recommendations" as const, label: "Recomendações", icon: "⭐" },
+  { id: "hype" as const, label: "Hype 24h", icon: "🔥" },
   { id: "mine" as const, label: "Minhas comunidades", icon: "🏠" },
   { id: "all" as const, label: "Todas as comunidades", icon: "🏰" },
 ];
 
-type TabId = "recommendations" | "mine" | "all";
+type TabId = "recommendations" | "hype" | "mine" | "all";
 
 function filterBySearch(list: Community[], search: string): Community[] {
   const q = search.trim().toLowerCase();
@@ -33,11 +34,13 @@ export default function Communities() {
   const { communities: allCommunities, isLoading: allLoading } = useCommunities({ search: search.trim() || undefined });
   const { communities: myCommunities, isLoading: myLoading } = useMyCommunities();
   const { communities: recommended, isLoading: recLoading } = useRecommendedCommunities();
+  const { communities: hypeCommunities, isLoading: hypeLoading } = useHypeCommunities();
   const createMutation = useCreateCommunity();
   const [createOpen, setCreateOpen] = useState(false);
   const hasToken = Boolean(getStoredToken());
 
   const filteredRecommendations = useMemo(() => filterBySearch(recommended, search), [recommended, search]);
+  const filteredHype = useMemo(() => filterBySearch(hypeCommunities, search), [hypeCommunities, search]);
   const filteredMine = useMemo(() => filterBySearch(myCommunities, search), [myCommunities, search]);
   const filteredAll = useMemo(() => allCommunities, [allCommunities]);
 
@@ -116,6 +119,24 @@ export default function Communities() {
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {filteredRecommendations.map((c) => (
+                    <CommunityCard key={c.id} community={c} friendsInCommunity={c.friendsInCommunity} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === "hype" && (
+            <>
+              {hypeLoading ? (
+                <p className="text-muted-foreground text-sm">Carregando comunidades em hype…</p>
+              ) : filteredHype.length === 0 ? (
+                <div className="tf-card p-6 text-center text-muted-foreground text-sm">
+                  Nenhuma comunidade em destaque nas últimas 24 horas.
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredHype.map((c) => (
                     <CommunityCard key={c.id} community={c} friendsInCommunity={c.friendsInCommunity} />
                   ))}
                 </div>

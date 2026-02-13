@@ -12,7 +12,27 @@ export async function getCommentCountByFeedItemIds(
   });
   const result: Record<string, number> = {};
   for (const id of feedItemIds) result[id] = 0;
-  for (const r of rows) result[r.feedItemId] = r._count.id;
+  for (const r of rows) {
+    if (r.feedItemId) result[r.feedItemId] = r._count.id;
+  }
+  return result;
+}
+
+/** Batch: total comment count per scrap (including replies). */
+export async function getCommentCountByScrapIds(
+  scrapIds: string[]
+): Promise<Record<string, number>> {
+  if (scrapIds.length === 0) return {};
+  const rows = await prisma.postComment.groupBy({
+    by: ["scrapId"],
+    where: { scrapId: { in: scrapIds } },
+    _count: { id: true },
+  });
+  const result: Record<string, number> = {};
+  for (const id of scrapIds) result[id] = 0;
+  for (const r of rows) {
+    if (r.scrapId) result[r.scrapId] = r._count.id;
+  }
   return result;
 }
 
@@ -43,35 +63,93 @@ export async function listCommentsByFeedItemId(feedItemId: string) {
   return roots;
 }
 
-export async function createComment(
-  userId: string,
-  feedItemId: string,
-  content: string,
-  parentId?: string | null
-) {
-  const feedItem = await prisma.feedItem.findUnique({
-    where: { id: feedItemId },
-    select: { allowComments: true },
+export async function listCommentsByScrapId(scrapId: string) {
+  const comments = await prisma.postComment.findMany({
+    where: { scrapId },
+    include: {
+      user: true,
+      reactions: true,
+    },
+    orderBy: { createdAt: "asc" },
   });
-  if (!feedItem) return null;
-  if (!feedItem.allowComments) return "disabled";
 
-  if (parentId != null) {
-    const parent = await prisma.postComment.findFirst({
-      where: { id: parentId, feedItemId },
-    });
-    if (!parent) return null;
+  const byId = new Map(comments.map((c) => [c.id, { ...c, replies: [] as typeof comments }]));
+  const roots: typeof comments = [];
+
+  for (const c of comments) {
+    const node = byId.get(c.id)!;
+    if (c.parentId == null) {
+      roots.push(node);
+    } else {
+      const parent = byId.get(c.parentId);
+      if (parent) (parent as { replies: typeof comments }).replies.push(node);
+      else roots.push(node);
+    }
   }
 
-  return prisma.postComment.create({
-    data: {
-      userId,
-      feedItemId,
-      content: content.trim(),
-      parentId: parentId || null,
-    },
-    include: { user: true, reactions: true },
-  });
+  return roots;
+}
+
+export async function createComment(
+  userId: string,
+  feedItemId: string | null,
+  content: string,
+  parentId?: string | null,
+  scrapId?: string | null
+) {
+  // Verificar se é FeedItem ou Scrap
+  if (feedItemId) {
+    const feedItem = await prisma.feedItem.findUnique({
+      where: { id: feedItemId },
+      select: { allowComments: true },
+    });
+    if (!feedItem) return null;
+    if (!feedItem.allowComments) return "disabled";
+
+    if (parentId != null) {
+      const parent = await prisma.postComment.findFirst({
+        where: { id: parentId, feedItemId },
+      });
+      if (!parent) return null;
+    }
+
+    return prisma.postComment.create({
+      data: {
+        userId,
+        feedItemId,
+        content: content.trim(),
+        parentId: parentId || null,
+      },
+      include: { user: true, reactions: true },
+    });
+  } else if (scrapId) {
+    // Verificar se o scrap existe e se o usuário tem acesso
+    const scrap = await prisma.scrapMessage.findUnique({
+      where: { id: scrapId },
+      select: { fromUserId: true, toUserId: true },
+    });
+    if (!scrap) return null;
+    // Ambos (remetente e destinatário) podem comentar
+    if (scrap.fromUserId !== userId && scrap.toUserId !== userId) return null;
+
+    if (parentId != null) {
+      const parent = await prisma.postComment.findFirst({
+        where: { id: parentId, scrapId },
+      });
+      if (!parent) return null;
+    }
+
+    return prisma.postComment.create({
+      data: {
+        userId,
+        scrapId,
+        content: content.trim(),
+        parentId: parentId || null,
+      },
+      include: { user: true, reactions: true },
+    });
+  }
+  return null;
 }
 
 export async function deleteComment(commentId: string, userId: string): Promise<boolean> {
