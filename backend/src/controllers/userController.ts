@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { prisma } from "../db/client.js";
 import { userToJSON } from "../views/userView.js";
 import {
   listFriends,
@@ -11,12 +12,38 @@ import {
   unblockUser as unblockUserService,
 } from "../services/userService.js";
 
-export function getMe(req: Request, res: Response) {
+export async function getMe(req: Request, res: Response) {
   if (!req.user) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
-  res.status(200).json(userToJSON(req.user));
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: req.user.id },
+    include: { steamGames: true, steamAchievements: true },
+  });
+  res.status(200).json(userToJSON(user));
+}
+
+export async function updatePinnedAchievements(req: Request, res: Response) {
+  if (!req.user) {
+    res.status(401).json({ message: "Não autorizado" });
+    return;
+  }
+  const achievementIds = req.body?.achievementIds;
+  if (!Array.isArray(achievementIds)) {
+    res.status(400).json({ message: "achievementIds deve ser um array de strings" });
+    return;
+  }
+  const ids = achievementIds.filter((id): id is string => typeof id === "string");
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: { pinnedAchievementIds: ids },
+  });
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: req.user.id },
+    include: { steamGames: true, steamAchievements: true },
+  });
+  res.status(200).json(userToJSON(user));
 }
 
 export async function getFriends(req: Request, res: Response) {

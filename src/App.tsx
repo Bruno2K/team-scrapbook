@@ -13,6 +13,7 @@ import Friends from "./pages/Friends";
 import Communities from "./pages/Communities";
 import CommunityDetail from "./pages/CommunityDetail";
 import PostDetail from "./pages/PostDetail";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <PostDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />

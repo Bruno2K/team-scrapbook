@@ -45,18 +45,24 @@ export function ProfileCard({ user }: ProfileCardProps) {
               <span className="text-xs text-muted-foreground">•</span>
               <span className="text-xs text-muted-foreground">{user.mainClass}</span>
             </div>
+            {user.steamProfileUrl && (
+              <a
+                href={user.steamProfileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] text-accent hover:underline mt-1 inline-block"
+              >
+                Steam
+              </a>
+            )}
           </div>
         </div>
 
-        {/* Add to Squad button */}
-        <button className={`w-full py-2.5 px-4 font-heading text-xs uppercase tracking-wider rounded tf-shadow-sm flex-shrink-0
-          transition-all hover:translate-y-[-1px] hover:brightness-110
-          ${user.team === "RED" 
-            ? "bg-team-red text-primary-foreground" 
-            : "bg-team-blu text-secondary-foreground"
-          }`}>
-          ⚔️ Adicionar ao Squad
-        </button>
+        {user.steamTotalPlaytimeMinutes != null && user.steamTotalPlaytimeMinutes > 0 && (
+          <p className="text-[10px] text-muted-foreground">
+            {Math.round(user.steamTotalPlaytimeMinutes / 60)}h jogadas na Steam
+          </p>
+        )}
 
         {/* Reputation */}
         {user.reputation.length > 0 && (
@@ -72,15 +78,20 @@ export function ProfileCard({ user }: ProfileCardProps) {
           </div>
         )}
 
-        {/* Achievements */}
-        {user.achievements.length > 0 && (
-          <div className="space-y-2 flex-shrink-0">
-            <h4 className="font-heading text-[10px] text-muted-foreground uppercase tracking-widest">
-              Medalhas
-            </h4>
-            <AchievementGrid achievements={user.achievements} />
-          </div>
-        )}
+        {/* Achievements: only pinned, max 8 to keep card compact */}
+        {(() => {
+          const pinnedIds = user.pinnedAchievementIds ?? [];
+          const pinned = (user.achievements ?? []).filter((a) => pinnedIds.includes(a.id)).slice(0, 8);
+          if (pinned.length === 0) return null;
+          return (
+            <div className="space-y-2 flex-shrink-0">
+              <h4 className="font-heading text-[10px] text-muted-foreground uppercase tracking-widest">
+                Conquistas
+              </h4>
+              <AchievementGrid achievements={pinned} />
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

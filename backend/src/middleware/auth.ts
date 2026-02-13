@@ -41,3 +41,26 @@ export async function optionalAuthMiddleware(req: Request, _res: Response, next:
   }
   next();
 }
+
+/** Like optionalAuth but also accepts token in query (for Steam redirect flow). */
+export async function optionalAuthForSteam(req: Request, _res: Response, next: NextFunction) {
+  let token: string | undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    token = authHeader.slice(7);
+  } else {
+    token = typeof req.query?.token === "string" ? req.query.token : undefined;
+  }
+  if (!token) {
+    next();
+    return;
+  }
+  try {
+    const { userId } = verifyToken(token);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user) req.user = user;
+  } catch {
+    // ignore invalid token
+  }
+  next();
+}
