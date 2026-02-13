@@ -7,6 +7,8 @@ import { getComments, postComment, deleteComment } from "@/api/comments";
 import { setCommentReaction, removeCommentReaction } from "@/api/reactions";
 import { playReactionSound } from "@/lib/sounds";
 import { getCurrentUserId } from "@/api/auth";
+import { formatTimestamp, formatFullDate } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const REACTION_EMOJI: Record<ReactionType, string> = {
   headshot: "💀",
@@ -64,12 +66,30 @@ function CommentRow({
     }
   };
 
+  const timestampText = formatTimestamp(comment.timestamp);
+  const isRelativeTimestamp = timestampText.startsWith("há") || timestampText === "agora";
+
   return (
     <div className={depth > 0 ? "ml-4 pl-3 border-l-2 border-border" : undefined}>
       <div className="py-2 space-y-1">
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
           <span className="font-bold text-foreground">{comment.user.nickname}</span>
-          <span>{comment.timestamp}</span>
+          {isRelativeTimestamp ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="cursor-help">
+                    {timestampText}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-[10px]">
+                  {formatFullDate(comment.timestamp)}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            <span>{timestampText}</span>
+          )}
           {isAuthor && (
             <button
               type="button"

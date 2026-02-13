@@ -1,10 +1,15 @@
+import { useState } from "react";
 import type { FeedItem, ReactionType } from "@/lib/types";
 import { CLASS_EMOJIS } from "@/lib/types";
 import { ContentWithMedia } from "@/components/ui/ContentWithMedia";
+import { AttachmentPreview } from "@/components/feed/AttachmentPreview";
 import { setPostReaction, removePostReaction } from "@/api/reactions";
 import { playReactionSound } from "@/lib/sounds";
 import { Link } from "react-router-dom";
-import { formatTimestamp } from "@/lib/utils";
+import { formatTimestamp, formatFullDate } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getCurrentUserId } from "@/api/auth";
+import { ConfirmDeletePostModal } from "./ConfirmDeletePostModal";
 
 // #region agent log
 const _log = (loc: string, msg: string, data: Record<string, unknown>) => {
@@ -22,6 +27,8 @@ interface FeedCardProps {
   item: FeedItem;
   /** Callback after reaction change so parent can invalidate (e.g. feed or post detail). */
   onReactionChange?: () => void;
+  /** Callback after post deletion so parent can invalidate. */
+  onDelete?: () => void;
 }
 
 const REACTION_EMOJI: Record<string, string> = {
@@ -38,7 +45,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   scrap: { label: "RECADO", color: "bg-team-red/20 text-team-red-light" },
 };
 
-export function FeedCard({ item, onReactionChange }: FeedCardProps) {
+export function FeedCard({ item, onReactionChange, onDelete }: FeedCardProps) {
   _log("FeedCard.tsx:render", "FeedCard_render", {
     itemId: item.id,
     contentType: typeof item.content,
@@ -53,6 +60,11 @@ export function FeedCard({ item, onReactionChange }: FeedCardProps) {
   const classEmoji = user.mainClass && CLASS_EMOJIS[user.mainClass as keyof typeof CLASS_EMOJIS] ? CLASS_EMOJIS[user.mainClass as keyof typeof CLASS_EMOJIS] : "👤";
 
   const isScrap = item.type === "scrap";
+  const timestampText = formatTimestamp(item.timestamp);
+  const isRelativeTimestamp = timestampText.startsWith("há") || timestampText === "agora";
+  const currentUserId = getCurrentUserId();
+  const isAuthor = currentUserId !== null && user.id === currentUserId;
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
     <div className={`tf-card border-l-4 ${borderClass} p-4 space-y-2`}>
@@ -75,9 +87,24 @@ export function FeedCard({ item, onReactionChange }: FeedCardProps) {
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] text-muted-foreground">
-              {formatTimestamp(item.timestamp)}
-            </span>
+            {isRelativeTimestamp ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-[10px] text-muted-foreground cursor-help">
+                      {timestampText}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-[10px]">
+                    {formatFullDate(item.timestamp)}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <span className="text-[10px] text-muted-foreground">
+                {timestampText}
+              </span>
+            )}
             {item.type === "community" && item.community && (
               <Link
                 to={`/communities/${item.community.id}`}
@@ -94,6 +121,11 @@ export function FeedCard({ item, onReactionChange }: FeedCardProps) {
           </div>
         </div>
       </div>
+
+      {/* Attachments */}
+      {item.attachments?.length ? (
+        <AttachmentPreview attachments={item.attachments} className="my-2" />
+      ) : null}
 
       {/* Content */}
       <ContentWithMedia content={item.content ?? ""} />
@@ -142,15 +174,30 @@ export function FeedCard({ item, onReactionChange }: FeedCardProps) {
           )}
           Ver post
         </Link>
-        {isScrap && (
-          <Link
-            to={`/post/${item.id}`}
-            className="text-[10px] font-bold uppercase text-accent hover:text-tf-yellow-light transition-colors flex items-center gap-1.5"
+        <Link
+          to={`/post/${item.id}`}
+          className="text-[10px] font-bold uppercase text-accent hover:text-tf-yellow-light transition-colors flex items-center gap-1.5"
+        >
+          Responder
+        </Link>
+        {isAuthor && onDelete && item.type !== "scrap" && (
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); setDeleteOpen(true); }}
+            className="text-[10px] font-bold uppercase text-destructive hover:text-destructive/80 transition-colors"
           >
-            Responder
-          </Link>
+            Excluir
+          </button>
         )}
       </div>
+      {onDelete && (
+        <ConfirmDeletePostModal
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          post={item}
+          onConfirm={onDelete}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,4 @@
-import type { Community, CommunityDetail, CommunityMemberRole } from "@/lib/types";
-import type { FeedItem } from "@/lib/types";
+import type { Attachment, Community, CommunityDetail, CommunityMemberRole, FeedItem } from "@/lib/types";
 import { apiRequest, isApiConfigured } from "./client";
 import { MOCK_COMMUNITIES, MOCK_MY_COMMUNITIES, MOCK_RECOMMENDED_COMMUNITIES } from "@/lib/mockData";
 
@@ -135,6 +134,7 @@ export async function getCommunityPosts(id: string): Promise<FeedItem[]> {
 export interface PostToCommunityOptions {
   allowComments?: boolean;
   allowReactions?: boolean;
+  attachments?: Attachment[];
 }
 
 export async function postToCommunity(
@@ -148,6 +148,7 @@ export async function postToCommunity(
       content,
       allowComments: options?.allowComments,
       allowReactions: options?.allowReactions,
+      attachments: options?.attachments,
     }),
   });
 }

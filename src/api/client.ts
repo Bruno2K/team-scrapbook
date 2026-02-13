@@ -1,6 +1,6 @@
 const baseURL = import.meta.env.VITE_API_URL ?? "";
 
-function getAuthToken(): string | null {
+export function getAuthToken(): string | null {
   return localStorage.getItem("token");
 }
 

@@ -3,10 +3,17 @@ import { z } from "zod";
 import { listScrapsReceived, listScrapsSent, createScrap } from "../services/scrapService.js";
 import { scrapToJSON } from "../views/scrapView.js";
 
+const attachmentSchema = z.object({
+  url: z.string().url(),
+  type: z.enum(["image", "video", "audio", "document"]),
+  filename: z.string().optional(),
+});
+
 const createScrapSchema = z.object({
   toUserId: z.string().min(1, "Destinatário é obrigatório"),
-  content: z.string().min(1, "Conteúdo é obrigatório"),
+  content: z.string().default(""),
   reaction: z.enum(["headshot", "heal", "burn", "backstab"]).optional(),
+  attachments: z.array(attachmentSchema).optional().default([]),
 });
 
 const filterSchema = z.enum(["received", "sent", "all"]);
@@ -51,12 +58,18 @@ export async function postScrap(req: Request, res: Response) {
     res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Dados inválidos" });
     return;
   }
+  const { content, attachments } = parsed.data;
+  if (!content.trim() && (!attachments || attachments.length === 0)) {
+    res.status(400).json({ message: "Conteúdo ou anexos são obrigatórios" });
+    return;
+  }
   try {
     const scrap = await createScrap({
       fromUserId: req.user.id,
       toUserId: parsed.data.toUserId,
-      content: parsed.data.content,
+      content: content.trim(),
       reaction: parsed.data.reaction,
+      attachments: parsed.data.attachments,
     });
     res.status(201).json(scrapToJSON(scrap, "sent"));
   } catch {

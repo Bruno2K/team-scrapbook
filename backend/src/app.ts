@@ -9,6 +9,7 @@ import feedRoutes from "./routes/feedRoutes.js";
 import commentRoutes from "./routes/commentRoutes.js";
 import scrapRoutes from "./routes/scrapRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
 
 const app = express();
 
@@ -29,5 +30,6 @@ app.use("/feed", feedRoutes);
 app.use("/comments", commentRoutes);
 app.use("/scraps", scrapRoutes);
 app.use("/communities", communityRoutes);
+app.use("/upload", uploadRoutes);
 
 export default app;

@@ -284,19 +284,28 @@ export async function postToCommunity(req: Request, res: Response) {
   const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
   const allowComments = req.body?.allowComments !== false;
   const allowReactions = req.body?.allowReactions !== false;
+  const rawAttachments = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
+  const attachments = rawAttachments.filter(
+    (a: unknown): a is { url: string; type: string; filename?: string } =>
+      typeof a === "object" &&
+      a !== null &&
+      typeof (a as { url?: unknown }).url === "string" &&
+      ["image", "video", "audio", "document"].includes((a as { type?: string }).type ?? "")
+  );
   if (!id) {
     res.status(400).json({ message: "ID da comunidade é obrigatório" });
     return;
   }
-  if (!content) {
-    res.status(400).json({ message: "Conteúdo é obrigatório" });
+  if (!content && attachments.length === 0) {
+    res.status(400).json({ message: "Conteúdo ou anexos são obrigatórios" });
     return;
   }
   try {
     const item = await createCommunityPost(req.user.id, id, {
-      content,
+      content: content || "",
       allowComments,
       allowReactions,
+      attachments: attachments.length ? attachments : undefined,
     });
     if (!item) {
       res.status(403).json({ message: "Apenas membros podem publicar" });

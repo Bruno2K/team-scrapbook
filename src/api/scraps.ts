@@ -1,4 +1,4 @@
-import type { ScrapMessage, ScrapFilter } from "@/lib/types";
+import type { Attachment, ScrapFilter, ScrapMessage } from "@/lib/types";
 import { apiRequest, isApiConfigured } from "./client";
 import { getStoredToken } from "./auth";
 import { MOCK_SCRAPS } from "@/lib/mockData";
@@ -19,6 +19,7 @@ export interface PostScrapInput {
   toUserId: string;
   content: string;
   reaction?: "headshot" | "heal" | "burn" | "backstab";
+  attachments?: Attachment[];
 }
 
 export async function postScrap(input: PostScrapInput): Promise<ScrapMessage> {

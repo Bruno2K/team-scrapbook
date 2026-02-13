@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useParams, useNavigate, useLocation } from "react-router-dom";
 import type { User } from "@/lib/types";
+import { uploadFileToR2 } from "@/api/upload";
 import { CLASS_EMOJIS } from "@/lib/types";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { SidebarLeft } from "@/components/layout/SidebarLeft";
 import { SidebarRight } from "@/components/layout/SidebarRight";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { EmojiGifInput } from "@/components/ui/EmojiGifInput";
+import { MediaAttachmentInput } from "@/components/ui/MediaAttachmentInput";
 import { Switch } from "@/components/ui/switch";
 import { EditCommunityModal } from "@/components/community/EditCommunityModal";
 import { ConfirmDeleteCommunityModal } from "@/components/community/ConfirmDeleteCommunityModal";
@@ -24,6 +26,8 @@ import {
   usePostToCommunity,
   COMMUNITY_POSTS_QUERY_KEY,
 } from "@/hooks/useCommunities";
+import { useDeleteFeedItem } from "@/hooks/useFeed";
+import { toast } from "sonner";
 import { getStoredToken } from "@/api/auth";
 
 export default function CommunityDetail() {
@@ -40,6 +44,7 @@ export default function CommunityDetail() {
   const deleteMutation = useDeleteCommunity();
   const removeMemberMutation = useRemoveMember(id ?? "");
   const postMutation = usePostToCommunity(id ?? "");
+  const deleteFeedItemMutation = useDeleteFeedItem();
 
   const location = useLocation();
   const [editOpen, setEditOpen] = useState(false);
@@ -48,9 +53,11 @@ export default function CommunityDetail() {
   const [postContent, setPostContent] = useState("");
   const [allowComments, setAllowComments] = useState(true);
   const [allowReactions, setAllowReactions] = useState(true);
+  const [postAttachmentFiles, setPostAttachmentFiles] = useState<File[]>([]);
   const [compactPostBox, setCompactPostBox] = useState(false);
   const compactPostBoxRef = useRef(false);
-  const lastClientHeightRef = useRef(0);
+  const [mainTab, setMainTab] = useState<"feed" | "members">("feed");
+  const [membersTab, setMembersTab] = useState<"all" | "admins" | "members">("all");
 
   useEffect(() => {
     if (location.hash === "#post" && community?.isMember) {
@@ -74,59 +81,33 @@ export default function CommunityDetail() {
     let ticking = false;
 
     const handleScroll = () => {
-      const listEl = document.getElementById("community-posts-scroll") as HTMLDivElement | null;
+      const listEl = document.querySelector(".list-scroll") as HTMLDivElement | null;
       if (!listEl) return;
 
       if (!ticking) {
         window.requestAnimationFrame(() => {
           const scrolled = listEl.scrollTop ?? 0;
-          const clientHeight = listEl.clientHeight;
-
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:handleScroll-raf',message:'scroll_event_v2',data:{scrollTop:scrolled,clientHeight,lastClientHeight:lastClientHeightRef.current,maxScroll:listEl.scrollHeight-clientHeight,compactRef:compactPostBoxRef.current},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
-          // #endregion
-
-          // Detectar se o container está redimensionando (animação CSS em progresso)
-          // Durante a animação de collapse/expand, clientHeight muda frame a frame.
-          // Ignorar eventos de scroll durante esse período para evitar o loop.
-          const isResizing = lastClientHeightRef.current !== 0 && Math.abs(clientHeight - lastClientHeightRef.current) > 2;
-          lastClientHeightRef.current = clientHeight;
-
-          if (isResizing) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:skip-resize',message:'SKIPPED_RESIZING',data:{scrolled,clientHeight,isResizing},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
-            // #endregion
-            ticking = false;
-            return;
-          }
-
+          
+          // Zona de histerese: encolhe aos 50px, expande aos 30px
+          // Isso evita mudanças muito frequentes quando está próximo do threshold
           const shouldBeCompact = scrolled > 50;
           const shouldExpand = scrolled < 30;
-
+          
           if (shouldBeCompact && !compactPostBoxRef.current) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:setCompact',message:'COMPACT_ON_v2',data:{scrolled,clientHeight},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
-            // #endregion
             compactPostBoxRef.current = true;
             setCompactPostBox(true);
           } else if (shouldExpand && compactPostBoxRef.current) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:setExpand',message:'COMPACT_OFF_v2',data:{scrolled,clientHeight},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
-            // #endregion
             compactPostBoxRef.current = false;
             setCompactPostBox(false);
           }
-
+          
           ticking = false;
         });
         ticking = true;
       }
     };
 
-    const listEl = document.getElementById("community-posts-scroll") as HTMLDivElement | null;
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'CommunityDetail.tsx:attach-listener',message:'attaching_scroll_listener_v2',data:{elementFound:!!listEl,postsLoading},timestamp:Date.now(),hypothesisId:'FIX'})}).catch(()=>{});
-    // #endregion
+    const listEl = document.querySelector(".list-scroll");
     if (listEl) {
       listEl.addEventListener("scroll", handleScroll, { passive: true });
     }
@@ -135,7 +116,7 @@ export default function CommunityDetail() {
         listEl.removeEventListener("scroll", handleScroll);
       }
     };
-  }, [postsLoading]);
+  }, [mainTab]);
 
   const handleDelete = async () => {
     if (!id) return;
@@ -150,13 +131,36 @@ export default function CommunityDetail() {
 
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!postContent.trim()) return;
-    await postMutation.mutateAsync({
-      content: postContent.trim(),
-      allowComments,
-      allowReactions,
-    });
-    setPostContent("");
+    if (!postContent.trim() && postAttachmentFiles.length === 0) return;
+    try {
+      const attachments =
+        postAttachmentFiles.length > 0
+          ? await Promise.all(postAttachmentFiles.map((f) => uploadFileToR2(f, "feed")))
+          : undefined;
+      await postMutation.mutateAsync({
+        content: postContent.trim(),
+        allowComments,
+        allowReactions,
+        attachments,
+      });
+      setPostContent("");
+      setPostAttachmentFiles([]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha no upload dos anexos.");
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    try {
+      await deleteFeedItemMutation.mutateAsync(postId);
+      toast.success("Postagem excluída!");
+      if (id) {
+        queryClient.invalidateQueries({ queryKey: COMMUNITY_POSTS_QUERY_KEY(id) });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Falha ao excluir postagem.";
+      toast.error(message);
+    }
   };
 
   if (!id) {
@@ -258,12 +262,36 @@ export default function CommunityDetail() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 grid gap-4 lg:grid-cols-3 mt-4">
-          {/* Posts */}
-          <div className="lg:col-span-2 flex flex-col min-h-0 min-w-0">
-            <h2 className="flex-shrink-0 font-heading text-xs text-muted-foreground uppercase tracking-widest mb-2">
-              Publicações
-            </h2>
+        {/* Main Tabs */}
+        <div className="flex-shrink-0 flex gap-1 p-1 bg-muted/50 rounded border border-border mt-4 mb-3">
+          <button
+            type="button"
+            onClick={() => setMainTab("feed")}
+            className={`flex-1 py-2 px-3 rounded font-heading text-[10px] uppercase tracking-wider transition-colors ${
+              mainTab === "feed"
+                ? "bg-accent text-accent-foreground tf-shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            Feed
+          </button>
+          <button
+            type="button"
+            onClick={() => setMainTab("members")}
+            className={`flex-1 py-2 px-3 rounded font-heading text-[10px] uppercase tracking-wider transition-colors ${
+              mainTab === "members"
+                ? "bg-accent text-accent-foreground tf-shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            Membros
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-h-0 flex flex-col min-w-0">
+          {mainTab === "feed" && (
+            <div className="flex flex-col flex-1 min-h-0 min-w-0">
             {community.isMember && (
               <form
                 id="post"
@@ -288,35 +316,38 @@ export default function CommunityDetail() {
                       rows={3}
                       disabled={postMutation.isPending}
                     />
-                    <div className="rounded-md border border-border bg-muted/30 p-3 flex flex-wrap gap-6 items-center">
-                      <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground w-full sm:w-auto">
-                        Opções da publicação
-                      </span>
-                      <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <div className="rounded-md border border-border bg-muted/30 px-2.5 py-2 flex items-center flex-wrap gap-3 text-[10px] text-muted-foreground">
+                      <label className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0">
                         <Switch
                           checked={allowComments}
                           onCheckedChange={setAllowComments}
-                          className="data-[state=checked]:bg-accent"
+                          className="data-[state=checked]:bg-accent h-4 w-7 flex-shrink-0 [&>*]:h-3 [&>*]:w-3 [&>*]:data-[state=checked]:translate-x-3"
                         />
-                        <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                          💬 Permitir comentários
+                        <span className="group-hover:text-foreground/80 transition-colors whitespace-nowrap">
+                          💬 Comentários
                         </span>
                       </label>
-                      <label className="flex items-center gap-2.5 cursor-pointer group">
+                      <label className="flex items-center gap-2.5 cursor-pointer group flex-shrink-0">
                         <Switch
                           checked={allowReactions}
                           onCheckedChange={setAllowReactions}
-                          className="data-[state=checked]:bg-accent"
+                          className="data-[state=checked]:bg-accent h-4 w-7 flex-shrink-0 [&>*]:h-3 [&>*]:w-3 [&>*]:data-[state=checked]:translate-x-3"
                         />
-                        <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                          👍 Permitir reações
+                        <span className="group-hover:text-foreground/80 transition-colors whitespace-nowrap">
+                          👍 Reações
                         </span>
                       </label>
                     </div>
+                    <MediaAttachmentInput
+                      kind="feed"
+                      value={postAttachmentFiles}
+                      onChange={setPostAttachmentFiles}
+                      disabled={postMutation.isPending}
+                    />
                     <div className="flex justify-end">
                       <button
                         type="submit"
-                        disabled={postMutation.isPending || !postContent.trim()}
+                        disabled={postMutation.isPending || (!postContent.trim() && postAttachmentFiles.length === 0)}
                         className="px-4 py-2 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground hover:brightness-110 disabled:opacity-50 transition-all"
                       >
                         {postMutation.isPending ? "Enviando…" : "Publicar"}
@@ -326,7 +357,7 @@ export default function CommunityDetail() {
                 </div>
               </form>
             )}
-            <div id="community-posts-scroll" className="list-scroll flex-1 pr-1">
+            <div id="community-posts-scroll" className="list-scroll flex-1 min-h-0 pr-1">
               {postsLoading ? (
                 <p className="text-muted-foreground text-sm">Carregando…</p>
               ) : posts.length === 0 ? (
@@ -340,24 +371,64 @@ export default function CommunityDetail() {
                       key={item.id}
                       item={item}
                       onReactionChange={() => id && queryClient.invalidateQueries({ queryKey: COMMUNITY_POSTS_QUERY_KEY(id) })}
+                      onDelete={() => handleDeletePost(item.id)}
                     />
                   ))}
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          )}
 
-          {/* Members */}
-          <div className="flex flex-col min-h-0 min-w-0">
-            <h2 className="flex-shrink-0 font-heading text-xs text-muted-foreground uppercase tracking-widest mb-2">
-              Membros
-            </h2>
-            <div className="list-scroll pr-1">
+          {mainTab === "members" && (
+            <div className="flex flex-col flex-1 min-h-0 min-w-0">
+            <div className="flex-shrink-0 flex gap-1 p-1 bg-muted/50 rounded border border-border mb-2">
+              <button
+                type="button"
+                onClick={() => setMembersTab("all")}
+                className={`flex-1 py-1.5 px-2 rounded font-heading text-[10px] uppercase tracking-wider transition-colors ${
+                  membersTab === "all"
+                    ? "bg-accent text-accent-foreground tf-shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                onClick={() => setMembersTab("admins")}
+                className={`flex-1 py-1.5 px-2 rounded font-heading text-[10px] uppercase tracking-wider transition-colors ${
+                  membersTab === "admins"
+                    ? "bg-accent text-accent-foreground tf-shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                Admins
+              </button>
+              <button
+                type="button"
+                onClick={() => setMembersTab("members")}
+                className={`flex-1 py-1.5 px-2 rounded font-heading text-[10px] uppercase tracking-wider transition-colors ${
+                  membersTab === "members"
+                    ? "bg-accent text-accent-foreground tf-shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                Membros
+              </button>
+            </div>
+            <div className="list-scroll flex-1 min-h-0 pr-1">
             {membersLoading ? (
               <p className="text-muted-foreground text-sm">Carregando…</p>
             ) : (
               <div className="space-y-0.5">
-                {members.map((m) => (
+                {members
+                  .filter((m) => {
+                    if (membersTab === "admins") return m.role === "ADMIN";
+                    if (membersTab === "members") return m.role !== "ADMIN";
+                    return true;
+                  })
+                  .map((m) => (
                   <div
                     key={m.user.id}
                     className="flex items-center justify-between gap-2 p-2 rounded hover:bg-muted/50"
@@ -386,7 +457,8 @@ export default function CommunityDetail() {
               </div>
             )}
             </div>
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
