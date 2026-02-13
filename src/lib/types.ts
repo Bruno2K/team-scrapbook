@@ -80,6 +80,12 @@ export interface FeedItem {
   myReaction?: ReactionType;
   /** Total number of comments (including replies) */
   commentCount?: number;
+  /** Present when type is "community": which community the post belongs to */
+  community?: { id: string; name: string };
+  /** Present when type is "scrap": whether current user sent or received it */
+  scrapDirection?: "sent" | "received";
+  /** Present when type is "scrap" and scrapDirection is "sent": recipient */
+  scrapTo?: Pick<User, "id" | "nickname">;
 }
 
 export interface PostComment {

@@ -24,6 +24,12 @@ export interface FeedItemJSON {
   myReaction?: string;
   /** Total number of comments (including replies) */
   commentCount?: number;
+  /** Present when type is "community": which community the post belongs to */
+  community?: { id: string; name: string };
+  /** Present when type is "scrap": whether current user sent or received it */
+  scrapDirection?: "sent" | "received";
+  /** Present when type is "scrap" and scrapDirection is "sent": recipient */
+  scrapTo?: UserJSON;
 }
 
 /** User shape from feed/scrap include (subset; team/mainClass may be string from API) */
@@ -31,8 +37,12 @@ type UserForFeed = Pick<User, "id" | "name" | "nickname" | "level" | "avatar" | 
   team: string;
   mainClass: string;
 };
-type FeedItemWithUser = PrismaFeedItem & { user: UserForFeed };
+type FeedItemWithUser = PrismaFeedItem & {
+  user: UserForFeed;
+  community?: { id: string; name: string } | null;
+};
 type ScrapWithFrom = ScrapMessage & { from: UserForFeed };
+type ScrapWithFromTo = ScrapMessage & { from: UserForFeed; to: UserForFeed };
 
 export function feedItemToJSON(
   item: FeedItemWithUser,
@@ -56,11 +66,15 @@ export function feedItemToJSON(
   if (options?.reactionCounts) base.reactionCounts = options.reactionCounts;
   if (options?.myReaction) base.myReaction = options.myReaction;
   if (options?.commentCount !== undefined) base.commentCount = options.commentCount;
+  if (item.community) base.community = { id: item.community.id, name: item.community.name };
   return base;
 }
 
-export function scrapToFeedItemJSON(scrap: ScrapWithFrom): FeedItemJSON {
-  return {
+export function scrapToFeedItemJSON(
+  scrap: ScrapWithFrom | ScrapWithFromTo,
+  options?: { direction?: "sent" | "received"; toUser?: UserJSON }
+): FeedItemJSON {
+  const base: FeedItemJSON = {
     id: scrap.id,
     user: userToJSON(scrap.from),
     content: scrap.content,
@@ -68,4 +82,7 @@ export function scrapToFeedItemJSON(scrap: ScrapWithFrom): FeedItemJSON {
     type: "scrap",
     reaction: scrap.reaction ?? undefined,
   };
+  if (options?.direction) base.scrapDirection = options.direction;
+  if (options?.toUser) base.scrapTo = options.toUser;
+  return base;
 }

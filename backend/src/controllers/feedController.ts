@@ -19,6 +19,7 @@ import {
 } from "../services/reactionService.js";
 import { getCommentCountByFeedItemIds } from "../services/commentService.js";
 import { feedItemToJSON, scrapToFeedItemJSON } from "../views/feedView.js";
+import { userToJSON } from "../views/userView.js";
 import { commentToJSON } from "../views/commentView.js";
 
 const createPostSchema = z.object({
@@ -41,7 +42,12 @@ export async function getFeed(req: Request, res: Response) {
       getCommentCountByFeedItemIds(feedIds),
     ]);
     const json = entries.map((e) => {
-      if (e.kind === "scrap") return scrapToFeedItemJSON(e.item);
+      if (e.kind === "scrap") {
+        const scrap = e.item;
+        const toUser =
+          e.direction === "sent" && "to" in scrap && scrap.to ? userToJSON(scrap.to) : undefined;
+        return scrapToFeedItemJSON(scrap, { direction: e.direction, toUser });
+      }
       return feedItemToJSON(e.item, {
         reactionCounts: reactionCountsMap[e.item.id],
         myReaction: myReactionsMap[e.item.id],

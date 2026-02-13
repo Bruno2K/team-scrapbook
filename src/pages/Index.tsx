@@ -5,6 +5,7 @@ import { SidebarLeft } from "@/components/layout/SidebarLeft";
 import { SidebarRight } from "@/components/layout/SidebarRight";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { EmojiGifInput } from "@/components/ui/EmojiGifInput";
+import { Switch } from "@/components/ui/switch";
 import { useQueryClient } from "@tanstack/react-query";
 import { useFeed, usePostFeed, FEED_QUERY_KEY } from "@/hooks/useFeed";
 
@@ -63,24 +64,29 @@ const Index = () => {
             rows={3}
             disabled={postFeed.isPending}
           />
-          <div className="flex flex-wrap gap-4 items-center">
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-              <input
-                type="checkbox"
+          <div className="rounded-md border border-border bg-muted/30 p-3 flex flex-wrap gap-6 items-center">
+            <span className="text-[10px] font-heading uppercase tracking-wider text-muted-foreground w-full sm:w-auto">
+              Opções da publicação
+            </span>
+            <label className="flex items-center gap-2.5 cursor-pointer group">
+              <Switch
                 checked={allowComments}
-                onChange={(e) => setAllowComments(e.target.checked)}
-                className="rounded border-border"
+                onCheckedChange={setAllowComments}
+                className="data-[state=checked]:bg-accent"
               />
-              Permitir comentários
+              <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
+                💬 Permitir comentários
+              </span>
             </label>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-              <input
-                type="checkbox"
+            <label className="flex items-center gap-2.5 cursor-pointer group">
+              <Switch
                 checked={allowReactions}
-                onChange={(e) => setAllowReactions(e.target.checked)}
-                className="rounded border-border"
+                onCheckedChange={setAllowReactions}
+                className="data-[state=checked]:bg-accent"
               />
-              Permitir reações
+              <span className="text-sm text-muted-foreground group-hover:text-foreground/80 transition-colors">
+                👍 Permitir reações
+              </span>
             </label>
           </div>
           <div className="flex justify-end">

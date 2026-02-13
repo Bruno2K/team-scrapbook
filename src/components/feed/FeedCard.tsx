@@ -71,7 +71,22 @@ export function FeedCard({ item, onReactionChange }: FeedCardProps) {
               </span>
             )}
           </div>
-          <span className="text-[10px] text-muted-foreground">{item.timestamp}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-muted-foreground">{item.timestamp}</span>
+            {item.type === "community" && item.community && (
+              <Link
+                to={`/communities/${item.community.id}`}
+                className="text-[10px] text-accent hover:text-tf-yellow-light transition-colors font-heading uppercase tracking-wider"
+              >
+                Em {item.community.name}
+              </Link>
+            )}
+            {item.type === "scrap" && item.scrapDirection === "sent" && item.scrapTo && (
+              <span className="text-[10px] text-muted-foreground">
+                Enviado para <span className="text-card-foreground font-medium">{item.scrapTo.nickname}</span>
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

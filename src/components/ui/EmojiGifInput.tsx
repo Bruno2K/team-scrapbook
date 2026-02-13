@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import {
   Popover,
   PopoverContent,
@@ -20,11 +20,15 @@ const EMOJI_LIST = [
   "😢", "😡", "🤯", "👏", "🙌", "💪", "🎮", "🔫", "💣", "🩹",
 ];
 
+const DEFAULT_MAX_HEIGHT_PX = 240;
+
 interface EmojiGifInputProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   rows?: number;
+  /** Max height in pixels; beyond this the textarea scrolls. Default 240. */
+  maxHeight?: number;
   className?: string;
   disabled?: boolean;
   id?: string;
@@ -44,6 +48,7 @@ export function EmojiGifInput({
   onChange,
   placeholder,
   rows = 3,
+  maxHeight = DEFAULT_MAX_HEIGHT_PX,
   className,
   disabled,
   id,
@@ -51,6 +56,20 @@ export function EmojiGifInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const safeValue = value ?? "";
   const { textOnly, media } = parseContentToTextAndMedia(safeValue);
+  const displayValue = media.length > 0 ? textOnly : safeValue;
+
+  const adjustHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const h = Math.min(el.scrollHeight, maxHeight);
+    el.style.height = `${h}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [maxHeight]);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [displayValue, adjustHeight]);
 
   const insertAtSelection = useCallback(
     (text: string) => {
@@ -90,8 +109,6 @@ export function EmojiGifInput({
     },
     [safeValue, onChange]
   );
-
-  const displayValue = media.length > 0 ? textOnly : safeValue;
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -152,7 +169,8 @@ export function EmojiGifInput({
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
-        className="w-full rounded border-2 border-border bg-background px-3 py-2 text-sm resize-none placeholder:text-muted-foreground focus:border-accent focus:outline-none"
+        className="w-full rounded border-2 border-border bg-background px-3 py-2 text-sm resize-none placeholder:text-muted-foreground focus:border-accent focus:outline-none min-h-0 overflow-y-hidden"
+        style={{ maxHeight: `${maxHeight}px` }}
       />
       {media.length > 0 && (
         <div className="rounded border border-border bg-muted/30 p-2 mt-1 space-y-2">
