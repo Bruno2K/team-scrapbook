@@ -33,9 +33,13 @@ export function ProfileCard({ user }: ProfileCardProps) {
       <div className="p-4 space-y-4 min-h-0 overflow-hidden">
         <div className="flex items-center gap-3 flex-shrink-0">
           {/* Avatar */}
-          <div className={`w-14 h-14 rounded-lg border-2 flex items-center justify-center text-2xl flex-shrink-0
+          <div className={`w-14 h-14 rounded-lg border-2 flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden
             ${user.team === "RED" ? "border-team-red bg-team-red/10" : "border-team-blu bg-team-blu/10"}`}>
-            {CLASS_EMOJIS[user.mainClass]}
+            {user.avatar ? (
+              <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+            ) : (
+              CLASS_EMOJIS[user.mainClass]
+            )}
           </div>
           <div className="flex-1 min-w-0 overflow-hidden">
             <h3 className="font-heading text-sm text-card-foreground line-clamp-2 break-words leading-tight">{user.name}</h3>

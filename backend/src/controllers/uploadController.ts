@@ -10,7 +10,7 @@ import {
 const presignSchema = z.object({
   filename: z.string().min(1, "filename é obrigatório"),
   contentType: z.string().min(1, "contentType é obrigatório"),
-  kind: z.enum(["feed", "scrap"]),
+  kind: z.enum(["feed", "scrap", "avatar"]),
 });
 
 export async function presign(req: Request, res: Response) {
@@ -32,8 +32,13 @@ export async function presign(req: Request, res: Response) {
 
   const { filename, contentType, kind } = parsed.data;
 
-  if (!validateContentType(contentType)) {
+  const allowed = validateContentType(contentType);
+  if (!allowed) {
     res.status(400).json({ message: "Tipo de arquivo não permitido" });
+    return;
+  }
+  if (kind === "avatar" && allowed.category !== "image") {
+    res.status(400).json({ message: "Foto de perfil deve ser uma imagem (JPEG, PNG, GIF ou WebP)" });
     return;
   }
 
@@ -58,13 +63,18 @@ export async function uploadFile(req: Request, res: Response) {
     return;
   }
 
-  const kind = (req.query.kind as string) === "scrap" ? "scrap" : "feed";
+  const q = req.query.kind as string;
+  const kind = q === "scrap" ? "scrap" : q === "avatar" ? "avatar" : "feed";
   const filename = (req.headers["x-upload-filename"] as string)?.trim() || "file";
   const contentType = (req.headers["content-type"] as string)?.split(";")[0]?.trim() || "application/octet-stream";
 
   const allowed = validateContentType(contentType);
   if (!allowed) {
     res.status(400).json({ message: "Tipo de arquivo não permitido" });
+    return;
+  }
+  if (kind === "avatar" && allowed.category !== "image") {
+    res.status(400).json({ message: "Foto de perfil deve ser uma imagem (JPEG, PNG, GIF ou WebP)" });
     return;
   }
 

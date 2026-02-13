@@ -20,6 +20,17 @@ export async function getFeed(): Promise<FeedItem[]> {
   }
 }
 
+export async function getMyFeed(): Promise<FeedItem[]> {
+  if (!isApiConfigured()) return [];
+  try {
+    const data = await apiRequest<unknown>("/users/me/feed");
+    if (!Array.isArray(data)) return [];
+    return data as FeedItem[];
+  } catch {
+    return [];
+  }
+}
+
 export async function getPost(id: string): Promise<GetPostResponse | null> {
   if (!isApiConfigured()) return null;
   try {

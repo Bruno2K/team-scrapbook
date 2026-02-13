@@ -32,6 +32,8 @@ export interface FeedItemJSON {
   scrapTo?: UserJSON;
   /** Media attachments (images, video, audio, documents) */
   attachments?: AttachmentJSON[];
+  /** Present on profile feed: 1-based order when pinned (1, 2, or 3) */
+  pinnedOrder?: number;
 }
 
 export interface AttachmentJSON {
@@ -58,6 +60,7 @@ export function feedItemToJSON(
     reactionCounts?: ReactionCountsJSON;
     myReaction?: string;
     commentCount?: number;
+    pinnedOrder?: number;
   }
 ): FeedItemJSON {
   const base: FeedItemJSON = {
@@ -77,6 +80,7 @@ export function feedItemToJSON(
   if (item.community) base.community = { id: item.community.id, name: item.community.name };
   if (item.attachments != null && Array.isArray(item.attachments))
     base.attachments = item.attachments as unknown as AttachmentJSON[];
+  if (options?.pinnedOrder !== undefined) base.pinnedOrder = options.pinnedOrder;
   return base;
 }
 
@@ -88,6 +92,7 @@ export function scrapToFeedItemJSON(
     reactionCounts?: ReactionCountsJSON;
     myReaction?: string;
     commentCount?: number;
+    pinnedOrder?: number;
   }
 ): FeedItemJSON {
   const base: FeedItemJSON = {
@@ -105,6 +110,7 @@ export function scrapToFeedItemJSON(
   if (options?.reactionCounts) base.reactionCounts = options.reactionCounts;
   if (options?.myReaction) base.myReaction = options.myReaction;
   if (options?.commentCount !== undefined) base.commentCount = options.commentCount;
+  if (options?.pinnedOrder !== undefined) base.pinnedOrder = options.pinnedOrder;
   if (scrap.attachments != null && Array.isArray(scrap.attachments))
     base.attachments = scrap.attachments as unknown as AttachmentJSON[];
   return base;

@@ -10,6 +10,7 @@ export interface UserJSON {
   avatar: string;
   achievements: Array<{ id: string; title: string; icon: string; description: string }>;
   pinnedAchievementIds: string[];
+  pinnedPostIds: string[];
   reputation: string[];
   online: boolean;
   steamId64?: string | null;
@@ -54,6 +55,11 @@ export function userToJSON(user: UserLike): UserJSON {
     ? (rawPinned as string[]).filter((id): id is string => typeof id === "string")
     : [];
 
+  const rawPinnedPosts = "pinnedPostIds" in user ? (user as { pinnedPostIds?: unknown }).pinnedPostIds : undefined;
+  const pinnedPostIds = Array.isArray(rawPinnedPosts)
+    ? (rawPinnedPosts as string[]).filter((id): id is string => typeof id === "string")
+    : [];
+
   return {
     id: user.id,
     name: user.name,
@@ -64,6 +70,7 @@ export function userToJSON(user: UserLike): UserJSON {
     avatar: user.avatar ?? "",
     achievements,
     pinnedAchievementIds,
+    pinnedPostIds,
     reputation: [],
     online: user.online,
     steamId64: user.steamId64 ?? undefined,

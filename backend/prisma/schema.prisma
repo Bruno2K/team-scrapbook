@@ -51,6 +51,7 @@ model User {
   steamId64       String?        @unique
   steamLinkedAt   DateTime?
   pinnedAchievementIds Json?     @default("[]")
+  pinnedPostIds      Json?      @default("[]")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   steamGames      UserSteamGame[]

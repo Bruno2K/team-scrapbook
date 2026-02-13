@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PostComment, ReactionType } from "@/lib/types";
 import { ContentWithMedia } from "@/components/ui/ContentWithMedia";
@@ -73,7 +74,9 @@ function CommentRow({
     <div className={depth > 0 ? "ml-4 pl-3 border-l-2 border-border" : undefined}>
       <div className="py-2 space-y-1">
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          <span className="font-bold text-foreground">{comment.user.nickname}</span>
+          <Link to={`/profile/${comment.user.id}`} className="font-bold text-foreground hover:text-accent transition-colors">
+            {comment.user.nickname}
+          </Link>
           {isRelativeTimestamp ? (
             <TooltipProvider>
               <Tooltip>

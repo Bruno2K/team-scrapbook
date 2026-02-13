@@ -1,8 +1,10 @@
 import type { Request, Response } from "express";
 import type { ScrapReaction } from "@prisma/client";
 import { z } from "zod";
+import { prisma } from "../db/client.js";
 import {
   listFeed,
+  listMyProfileFeed,
   createPost,
   getFeedItemById,
   deleteFeedItem,
@@ -101,6 +103,188 @@ export async function getFeed(req: Request, res: Response) {
     res.status(200).json(json);
   } catch (err) {
     res.status(500).json({ message: "Erro ao carregar o feed" });
+  }
+}
+
+export async function getMyFeed(req: Request, res: Response) {
+  if (!req.user) {
+    res.status(401).json({ message: "Não autorizado" });
+    return;
+  }
+  try {
+    const userId = req.user.id;
+    const [entries, dbUser] = await Promise.all([
+      listMyProfileFeed(userId),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { pinnedPostIds: true },
+      }),
+    ]);
+
+    const pinnedPostIds: string[] = Array.isArray(dbUser?.pinnedPostIds)
+      ? (dbUser!.pinnedPostIds as string[]).filter((id): id is string => typeof id === "string")
+      : [];
+
+    const feedIds = entries
+      .filter((e): e is typeof e & { kind: "feed" } => e.kind === "feed")
+      .map((e) => e.item.id);
+    const scrapIds = entries
+      .filter((e): e is typeof e & { kind: "scrap" } => e.kind === "scrap")
+      .map((e) => e.item.id);
+
+    const [feedReactionCountsMap, feedMyReactionsMap, feedCommentCountMap] = await Promise.all([
+      getPostReactionCountsForMany(feedIds),
+      getMyPostReactionsForMany(feedIds, userId),
+      getCommentCountByFeedItemIds(feedIds),
+    ]);
+
+    const scrapReactionCountsMap: Record<string, Record<ScrapReaction, number>> = {};
+    const scrapMyReactionsMap: Record<string, ScrapReaction> = {};
+    const scrapCommentCountMap = scrapIds.length > 0 ? await getCommentCountByScrapIds(scrapIds) : {};
+    if (scrapIds.length > 0) {
+      await Promise.all(
+        scrapIds.map(async (scrapId) => {
+          const [counts, myReaction] = await Promise.all([
+            getScrapReactionCounts(scrapId),
+            getMyScrapReaction(scrapId, userId),
+          ]);
+          scrapReactionCountsMap[scrapId] = counts;
+          if (myReaction) scrapMyReactionsMap[scrapId] = myReaction;
+        })
+      );
+    }
+
+    const pinnedOrderById = new Map<string, number>();
+    pinnedPostIds.forEach((id, index) => pinnedOrderById.set(id, index + 1));
+
+    const json = entries.map((e) => {
+      const pinnedOrder = pinnedOrderById.get(e.item.id);
+      if (e.kind === "scrap") {
+        const scrap = e.item;
+        const toUser =
+          e.direction === "sent" && "to" in scrap && scrap.to ? userToJSON(scrap.to) : undefined;
+        return scrapToFeedItemJSON(scrap, {
+          direction: e.direction,
+          toUser,
+          reactionCounts: scrapReactionCountsMap[scrap.id],
+          myReaction: scrapMyReactionsMap[scrap.id] ?? undefined,
+          commentCount: scrapCommentCountMap[scrap.id] ?? 0,
+          pinnedOrder,
+        });
+      }
+      return feedItemToJSON(e.item, {
+        reactionCounts: feedReactionCountsMap[e.item.id],
+        myReaction: feedMyReactionsMap[e.item.id],
+        commentCount: feedCommentCountMap[e.item.id] ?? 0,
+        pinnedOrder,
+      });
+    });
+
+    json.sort((a, b) => {
+      const aPinned = a.pinnedOrder ?? 0;
+      const bPinned = b.pinnedOrder ?? 0;
+      if (aPinned && bPinned) return aPinned - bPinned;
+      if (aPinned) return -1;
+      if (bPinned) return 1;
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+
+    res.status(200).json(json);
+  } catch (err) {
+    res.status(500).json({ message: "Erro ao carregar suas postagens" });
+  }
+}
+
+export async function getUserFeed(req: Request, res: Response) {
+  const userId = req.params.userId;
+  if (!userId) {
+    res.status(400).json({ message: "userId é obrigatório" });
+    return;
+  }
+  const viewerId = req.user?.id ?? null;
+  try {
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, pinnedPostIds: true },
+    });
+    if (!target) {
+      res.status(404).json({ message: "Usuário não encontrado" });
+      return;
+    }
+
+    const pinnedPostIdsResolved = Array.isArray(target.pinnedPostIds)
+      ? (target.pinnedPostIds as string[]).filter((id): id is string => typeof id === "string")
+      : [];
+
+    const entriesResolved = await listMyProfileFeed(userId);
+
+    const feedIds = entriesResolved
+      .filter((e): e is typeof e & { kind: "feed" } => e.kind === "feed")
+      .map((e) => e.item.id);
+    const scrapIds = entriesResolved
+      .filter((e): e is typeof e & { kind: "scrap" } => e.kind === "scrap")
+      .map((e) => e.item.id);
+
+    const [feedReactionCountsMap, feedMyReactionsMap, feedCommentCountMap] = await Promise.all([
+      getPostReactionCountsForMany(feedIds),
+      viewerId ? getMyPostReactionsForMany(feedIds, viewerId) : Promise.resolve({}),
+      getCommentCountByFeedItemIds(feedIds),
+    ]);
+
+    const scrapReactionCountsMap: Record<string, Record<ScrapReaction, number>> = {};
+    const scrapMyReactionsMap: Record<string, ScrapReaction> = {};
+    const scrapCommentCountMap = scrapIds.length > 0 ? await getCommentCountByScrapIds(scrapIds) : {};
+    if (scrapIds.length > 0 && viewerId) {
+      await Promise.all(
+        scrapIds.map(async (scrapId) => {
+          const [counts, myReaction] = await Promise.all([
+            getScrapReactionCounts(scrapId),
+            getMyScrapReaction(scrapId, viewerId),
+          ]);
+          scrapReactionCountsMap[scrapId] = counts;
+          if (myReaction) scrapMyReactionsMap[scrapId] = myReaction;
+        })
+      );
+    }
+
+    const pinnedOrderById = new Map<string, number>();
+    pinnedPostIdsResolved.forEach((id, index) => pinnedOrderById.set(id, index + 1));
+
+    const json = entriesResolved.map((e) => {
+      const pinnedOrder = pinnedOrderById.get(e.item.id);
+      if (e.kind === "scrap") {
+        const scrap = e.item;
+        const toUser =
+          e.direction === "sent" && "to" in scrap && scrap.to ? userToJSON(scrap.to) : undefined;
+        return scrapToFeedItemJSON(scrap, {
+          direction: e.direction,
+          toUser,
+          reactionCounts: scrapReactionCountsMap[scrap.id],
+          myReaction: scrapMyReactionsMap[scrap.id] ?? undefined,
+          commentCount: scrapCommentCountMap[scrap.id] ?? 0,
+          pinnedOrder,
+        });
+      }
+      return feedItemToJSON(e.item, {
+        reactionCounts: feedReactionCountsMap[e.item.id],
+        myReaction: feedMyReactionsMap[e.item.id],
+        commentCount: feedCommentCountMap[e.item.id] ?? 0,
+        pinnedOrder,
+      });
+    });
+
+    json.sort((a, b) => {
+      const aPinned = a.pinnedOrder ?? 0;
+      const bPinned = b.pinnedOrder ?? 0;
+      if (aPinned && bPinned) return aPinned - bPinned;
+      if (aPinned) return -1;
+      if (bPinned) return 1;
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+
+    res.status(200).json(json);
+  } catch (err) {
+    res.status(500).json({ message: "Erro ao carregar postagens" });
   }
 }
 

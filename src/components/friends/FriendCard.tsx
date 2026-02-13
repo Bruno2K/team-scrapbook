@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { User } from "@/lib/types";
 import { CLASS_EMOJIS } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -35,22 +36,26 @@ export function FriendCard({
 }: FriendCardProps) {
   return (
     <div className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors group">
-      <div className="relative flex-shrink-0">
-        <div className={`w-9 h-9 rounded flex items-center justify-center text-base border-2
+      <Link to={`/profile/${user.id}`} className="relative flex-shrink-0">
+        <div className={`w-9 h-9 rounded flex items-center justify-center text-base border-2 overflow-hidden
           ${user.team === "RED" ? "border-team-red bg-team-red/10" : "border-team-blu bg-team-blu/10"}`}>
-          {CLASS_EMOJIS[user.mainClass]}
+          {user.avatar ? (
+            <img src={user.avatar} alt="" className="w-full h-full object-cover" />
+          ) : (
+            CLASS_EMOJIS[user.mainClass]
+          )}
         </div>
         {variant !== "blocked" && (
           <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card
             ${user.online ? "bg-accent animate-pulse-glow" : "bg-muted-foreground"}`} />
         )}
-      </div>
-      <div className="flex-1 min-w-0 overflow-hidden">
+      </Link>
+      <Link to={`/profile/${user.id}`} className="flex-1 min-w-0 overflow-hidden">
         <p className="text-xs font-bold text-card-foreground line-clamp-2 break-all group-hover:text-accent transition-colors leading-tight">
           {user.nickname}
         </p>
         <p className="text-[10px] text-muted-foreground mt-0.5">{user.mainClass}</p>
-      </div>
+      </Link>
       <div className="flex items-center gap-2 flex-shrink-0">
         {variant === "friend" && (
           <>
