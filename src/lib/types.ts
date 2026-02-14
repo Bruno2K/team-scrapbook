@@ -38,6 +38,8 @@ export interface User {
   achievements: Achievement[];
   reputation: string[];
   online: boolean;
+  /** True for seed users that are replied to by AI (Gemini) */
+  isAiManaged?: boolean;
   /** Steam ID (64-bit) when linked */
   steamId64?: string | null;
   /** Steam profile URL when linked */
@@ -144,6 +146,43 @@ export interface ScrapMessage {
   reaction?: ReactionType;
   direction?: "sent" | "received";
   attachments?: Attachment[];
+}
+
+/** Chat: minimal user for conversation list / message sender */
+export interface ChatUser {
+  id: string;
+  nickname: string;
+  name: string;
+  avatar: string;
+  online: boolean;
+  isAiManaged?: boolean;
+}
+
+export type ChatMessageType = "text" | "audio" | "video" | "document";
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  sender: ChatUser;
+  content: string | null;
+  type: string;
+  attachments: Attachment[] | null;
+  createdAt: string;
+}
+
+export interface ConversationLastPreview {
+  id: string;
+  content: string | null;
+  type: string;
+  createdAt: string;
+  sender?: { id: string; nickname: string };
+}
+
+export interface Conversation {
+  id: string;
+  otherUser: ChatUser;
+  lastMessagePreview: ConversationLastPreview | null;
+  lastActivityAt: string;
 }
 
 export type ReputationBadge =

@@ -20,7 +20,7 @@ export interface MediaAttachmentInputProps {
   /** Pending files (upload happens on post submit, not here). */
   value: File[];
   onChange: (files: File[]) => void;
-  kind: "feed" | "scrap";
+  kind: "feed" | "scrap" | "chat";
   disabled?: boolean;
   maxFiles?: number;
   className?: string;

@@ -15,6 +15,7 @@ interface FriendCardProps {
   user: User;
   variant?: FriendCardVariant;
   onSendScrap?: (user: User) => void;
+  onChat?: (user: User) => void;
   onRemove?: () => void;
   onBlock?: () => void;
   onAdd?: () => void;
@@ -27,6 +28,7 @@ export function FriendCard({
   user,
   variant = "friend",
   onSendScrap,
+  onChat,
   onRemove,
   onBlock,
   onAdd,
@@ -59,6 +61,17 @@ export function FriendCard({
       <div className="flex items-center gap-2 flex-shrink-0">
         {variant === "friend" && (
           <>
+            {onChat && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-[10px] font-heading uppercase tracking-wider"
+                onClick={(e) => { e.stopPropagation(); onChat(user); }}
+                title="Conversar"
+              >
+                💬 Conversar
+              </Button>
+            )}
             {onSendScrap && (
               <Button
                 variant="ghost"

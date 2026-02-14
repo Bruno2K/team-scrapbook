@@ -10,6 +10,8 @@ import commentRoutes from "./routes/commentRoutes.js";
 import scrapRoutes from "./routes/scrapRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
+import aiActionsRoutes from "./routes/aiActionsRoutes.js";
 
 const app = express();
 
@@ -31,5 +33,7 @@ app.use("/comments", commentRoutes);
 app.use("/scraps", scrapRoutes);
 app.use("/communities", communityRoutes);
 app.use("/upload", uploadRoutes);
+app.use("/chat", chatRoutes);
+app.use("/ai-actions", aiActionsRoutes);
 
 export default app;

@@ -1,7 +1,26 @@
 import { prisma } from "../db/client.js";
 
-function friendPair(a: string, b: string): [string, string] {
+export function friendPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
+}
+
+/** True if both users are friends and neither has blocked the other. */
+export async function canChatWith(userId: string, otherId: string): Promise<boolean> {
+  if (userId === otherId) return false;
+  const [u1, u2] = friendPair(userId, otherId);
+  const friendship = await prisma.friendship.findUnique({
+    where: { user1Id_user2Id: { user1Id: u1, user2Id: u2 } },
+  });
+  if (!friendship) return false;
+  const blocked = await prisma.blockedUser.findFirst({
+    where: {
+      OR: [
+        { blockerId: userId, blockedId: otherId },
+        { blockerId: otherId, blockedId: userId },
+      ],
+    },
+  });
+  return !blocked;
 }
 
 /** List users that are friends with the given user (mutual). Excludes blocked. */

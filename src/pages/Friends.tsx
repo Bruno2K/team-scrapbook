@@ -19,6 +19,8 @@ import {
   useBlockUser,
   useUnblockUser,
 } from "@/hooks/useFriends";
+import { useGetOrCreateConversation } from "@/hooks/useChat";
+import { useChat } from "@/contexts/ChatContext";
 import { getStoredToken } from "@/api/auth";
 
 const TABS = [
@@ -49,6 +51,13 @@ export default function Friends() {
   const [scrapDialogOpen, setScrapDialogOpen] = useState(false);
 
   const hasToken = Boolean(getStoredToken());
+  const getOrCreateConversation = useGetOrCreateConversation();
+  const { openConversationWith } = useChat();
+
+  const handleChat = async (u: User) => {
+    const conv = await getOrCreateConversation(u.id);
+    if (conv) openConversationWith(conv);
+  };
 
   const handleSendScrap = (u: User) => {
     setScrapTarget(u);
@@ -122,6 +131,7 @@ export default function Friends() {
                     key={u.id}
                     user={u}
                     variant="friend"
+                    onChat={hasToken ? handleChat : undefined}
                     onSendScrap={hasToken ? handleSendScrap : undefined}
                     onRemove={() => setRemoveTarget(u)}
                     onBlock={() => setBlockTarget(u)}
@@ -135,6 +145,7 @@ export default function Friends() {
                         key={u.id}
                         user={u}
                         variant="friend"
+                        onChat={hasToken ? handleChat : undefined}
                         onSendScrap={hasToken ? handleSendScrap : undefined}
                         onRemove={() => setRemoveTarget(u)}
                         onBlock={() => setBlockTarget(u)}

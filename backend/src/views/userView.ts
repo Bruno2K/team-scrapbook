@@ -13,6 +13,7 @@ export interface UserJSON {
   pinnedPostIds: string[];
   reputation: string[];
   online: boolean;
+  isAiManaged?: boolean;
   steamId64?: string | null;
   steamProfileUrl?: string | null;
   steamGames?: Array<{ appId: number; name: string; iconUrl: string | null; playtimeMinutes: number; playtime2WeeksMinutes: number }>;
@@ -23,6 +24,7 @@ export interface UserJSON {
 export type UserLike = Pick<User, "id" | "name" | "nickname" | "level" | "avatar" | "online"> & {
   team: string;
   mainClass: string;
+  isAiManaged?: boolean;
   steamId64?: string | null;
   steamLinkedAt?: Date | null;
   pinnedAchievementIds?: unknown;
@@ -73,6 +75,7 @@ export function userToJSON(user: UserLike): UserJSON {
     pinnedPostIds,
     reputation: [],
     online: user.online,
+    isAiManaged: "isAiManaged" in user ? (user as { isAiManaged?: boolean }).isAiManaged : undefined,
     steamId64: user.steamId64 ?? undefined,
     steamProfileUrl: user.steamId64 ? `https://steamcommunity.com/profiles/${user.steamId64}` : undefined,
     steamGames,

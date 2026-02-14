@@ -36,10 +36,21 @@ async function main() {
             mainClass,
             level: Math.floor(Math.random() * 50) + 1,
             online: false,
+            isAiManaged: true,
           },
         });
         usersCreated++;
       }
+    }
+  }
+  // Ensure all seed-pattern users (Class_TEAM) are marked as AI-managed (e.g. after migration)
+  for (const team of TEAMS) {
+    for (const mainClass of TF2_CLASSES) {
+      const nickname = `${mainClass}_${team}`;
+      await prisma.user.updateMany({
+        where: { nickname },
+        data: { isAiManaged: true },
+      });
     }
   }
   if (usersCreated > 0) {
