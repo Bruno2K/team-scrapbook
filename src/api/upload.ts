@@ -11,7 +11,7 @@ export interface PresignResponse {
 export async function getPresignedUploadUrl(
   filename: string,
   contentType: string,
-  kind: "feed" | "scrap" | "avatar"
+  kind: "feed" | "scrap" | "avatar" | "chat"
 ): Promise<PresignResponse> {
   return apiRequest<PresignResponse>("/upload/presign", {
     method: "POST",
@@ -27,12 +27,16 @@ export interface UploadFileResponse {
 }
 
 /** Upload via backend proxy (avoids CORS with R2). */
-export async function uploadFileToR2(file: File, kind: "feed" | "scrap" | "avatar"): Promise<Attachment> {
+export async function uploadFileToR2(
+  file: File,
+  kind: "feed" | "scrap" | "avatar" | "chat"
+): Promise<Attachment> {
   if (!isApiConfigured()) {
     throw new Error("API não configurada");
   }
   const baseURL = (import.meta.env.VITE_API_URL as string) ?? "";
-  const url = `${baseURL.replace(/\/$/, "")}/upload/file?kind=${kind === "avatar" ? "avatar" : kind}`;
+  const kindParam = kind === "avatar" ? "avatar" : kind === "chat" ? "chat" : kind;
+  const url = `${baseURL.replace(/\/$/, "")}/upload/file?kind=${kindParam}`;
   const token = getAuthToken();
   const headers: HeadersInit = {
     "X-Upload-Filename": file.name,

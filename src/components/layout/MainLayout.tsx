@@ -1,6 +1,23 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { logout, getStoredToken } from "@/api/auth";
+import { generateRandomAiActions } from "@/api/aiActions";
+import { ChatLauncher } from "@/components/chat/ChatLauncher";
+import { ChatPanel } from "@/components/chat/ChatPanel";
+import { ChatMaximized } from "@/components/chat/ChatMaximized";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // #region agent log
 const _log = (loc: string, msg: string, data: Record<string, unknown>) => {
@@ -21,7 +38,34 @@ interface MainLayoutProps {
 export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [aiActionsLoading, setAiActionsLoading] = useState(false);
+  const [confirmAiActionsOpen, setConfirmAiActionsOpen] = useState(false);
   _log("MainLayout.tsx:render", "MainLayout_mount", { path: location.pathname });
+
+  const handleOpenConfirmAiActions = () => setConfirmAiActionsOpen(true);
+
+  const handleConfirmGenerateAiActions = async () => {
+    setConfirmAiActionsOpen(false);
+    setAiActionsLoading(true);
+    try {
+      const res = await generateRandomAiActions();
+      if (res.created > 0) {
+        toast.success(res.message ?? `${res.created} ações criadas.`, {
+          description: "Recados, posts, reações e comentários foram gerados pelos usuários de IA.",
+        });
+      } else {
+        toast.info(res.message ?? "Nenhuma ação criada.", {
+          description: res.errors?.length ? res.errors.join(" ") : undefined,
+        });
+      }
+    } catch (e) {
+      toast.error("Falha ao gerar ações", {
+        description: e instanceof Error ? e.message : "Tente novamente mais tarde.",
+      });
+    } finally {
+      setAiActionsLoading(false);
+    }
+  };
   const navItems = [
     { label: "Feed", icon: "📋", to: "/" },
     { label: "Perfil", icon: "👤", to: "/profile" },
@@ -103,6 +147,53 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
           {sidebarRight}
         </aside>
       </div>
+
+      {/* Chat widget (bottom-right) + AI actions button (bottom-left) */}
+      {getStoredToken() && (
+        <>
+          <div className="fixed bottom-4 left-4 z-50">
+            <Button
+              type="button"
+              size="icon"
+              className="h-12 w-12 rounded-full shadow-lg tf-shadow-sm bg-accent text-accent-foreground hover:bg-accent/90"
+              onClick={handleOpenConfirmAiActions}
+              disabled={aiActionsLoading}
+              aria-label="Gerar ações aleatórias dos usuários de IA"
+              title="Gerar 10 ações aleatórias (recados, posts, reações, comentários)"
+            >
+              <Sparkles className={`h-6 w-6 ${aiActionsLoading ? "animate-pulse" : ""}`} />
+            </Button>
+          </div>
+
+          <AlertDialog open={confirmAiActionsOpen} onOpenChange={setConfirmAiActionsOpen}>
+            <AlertDialogContent className="border-border bg-card tf-shadow-sm font-heading">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="font-heading text-lg tracking-wider uppercase">
+                  Gerar ações dos usuários de IA
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-muted-foreground font-normal normal-case tracking-normal">
+                  Serão criadas até 10 interações aleatórias entre usuários de IA: recados, posts no feed ou em
+                  comunidades, reações e comentários em outros posts. Deseja continuar?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2 sm:gap-0">
+                <AlertDialogCancel className="font-heading text-[10px] uppercase tracking-wider">
+                  Cancelar
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleConfirmGenerateAiActions}
+                  className="font-heading text-[10px] uppercase tracking-wider bg-accent text-accent-foreground hover:bg-accent/90"
+                >
+                  Confirmar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <ChatLauncher />
+          <ChatPanel />
+          <ChatMaximized />
+        </>
+      )}
     </div>
   );
 }

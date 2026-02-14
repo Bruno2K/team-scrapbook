@@ -10,7 +10,7 @@ import {
 const presignSchema = z.object({
   filename: z.string().min(1, "filename é obrigatório"),
   contentType: z.string().min(1, "contentType é obrigatório"),
-  kind: z.enum(["feed", "scrap", "avatar"]),
+  kind: z.enum(["feed", "scrap", "avatar", "chat"]),
 });
 
 export async function presign(req: Request, res: Response) {
@@ -64,7 +64,7 @@ export async function uploadFile(req: Request, res: Response) {
   }
 
   const q = req.query.kind as string;
-  const kind = q === "scrap" ? "scrap" : q === "avatar" ? "avatar" : "feed";
+  const kind = q === "scrap" ? "scrap" : q === "avatar" ? "avatar" : q === "chat" ? "chat" : "feed";
   const filename = (req.headers["x-upload-filename"] as string)?.trim() || "file";
   const contentType = (req.headers["content-type"] as string)?.split(";")[0]?.trim() || "application/octet-stream";
 

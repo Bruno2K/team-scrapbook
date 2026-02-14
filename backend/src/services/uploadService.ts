@@ -55,7 +55,7 @@ function contentTypeToExtension(contentType: string): string {
   return map[contentType] ?? "";
 }
 
-export type AttachmentKind = "feed" | "scrap" | "avatar";
+export type AttachmentKind = "feed" | "scrap" | "avatar" | "chat";
 
 export interface PresignResult {
   uploadUrl: string;
@@ -93,7 +93,9 @@ export async function getPresignedUploadUrl(
   const key =
     kind === "avatar"
       ? `avatar/${userId}/${randomUUID()}${ext}`
-      : `${kind}/${userId}/${date}/${randomUUID()}${ext}`;
+      : kind === "chat"
+        ? `chat/${userId}/${date}/${randomUUID()}${ext}`
+        : `${kind}/${userId}/${date}/${randomUUID()}${ext}`;
 
   const client = new S3Client({
     region: "auto",

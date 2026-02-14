@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ChatProvider } from "@/contexts/ChatContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -36,6 +37,7 @@ const App = () => (
       <Sonner />
       <ErrorBoundary>
         <BrowserRouter>
+          <ChatProvider>
           <Routes>
             <Route
               path="/"
@@ -117,6 +119,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </ChatProvider>
         </BrowserRouter>
       </ErrorBoundary>
     </TooltipProvider>
