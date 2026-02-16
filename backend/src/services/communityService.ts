@@ -2,6 +2,7 @@ import { prisma } from "../db/client.js";
 import type { TF2Class, Team } from "@prisma/client";
 import type { User } from "@prisma/client";
 import { listFriends } from "./userService.js";
+import { createNotification, deleteByJoinRequestId } from "./notificationService.js";
 
 export interface ListCommunitiesOptions {
   userId?: string;
@@ -14,6 +15,7 @@ export interface CommunityWithMeta {
   name: string;
   description: string;
   memberCount: number;
+  isPrivate: boolean;
   dominantClass: TF2Class | null;
   team: Team | null;
   ownerId: string | null;
@@ -67,6 +69,7 @@ export async function listCommunities(
         name: c.name,
         description: c.description,
         memberCount: c.memberCount,
+        isPrivate: c.isPrivate,
         dominantClass: c.dominantClass,
         team: c.team,
         ownerId: c.ownerId,
@@ -95,6 +98,7 @@ export async function listCommunitiesWhereMember(userId: string, limit = 50): Pr
         name: c.name,
         description: c.description,
         memberCount: c.memberCount,
+        isPrivate: c.isPrivate,
         dominantClass: c.dominantClass,
         team: c.team,
         ownerId: c.ownerId,
@@ -138,21 +142,34 @@ export async function canManageCommunity(userId: string, communityId: string): P
   return member?.role === "ADMIN";
 }
 
+export async function canModerateCommunity(userId: string, communityId: string): Promise<boolean> {
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { ownerId: true },
+  });
+  if (!community) return false;
+  if (community.ownerId === userId) return true;
+  const member = await getMember(userId, communityId);
+  return member?.role === "ADMIN" || member?.role === "MODERATOR";
+}
+
 export interface CreateCommunityInput {
   userId: string;
   name: string;
   description: string;
+  isPrivate?: boolean;
   dominantClass?: TF2Class;
   team?: Team;
 }
 
 export async function createCommunity(input: CreateCommunityInput) {
-  const { userId, name, description, dominantClass, team } = input;
+  const { userId, name, description, isPrivate = false, dominantClass, team } = input;
   return prisma.$transaction(async (tx) => {
     const community = await tx.community.create({
       data: {
         name,
         description,
+        isPrivate: !!isPrivate,
         dominantClass,
         team,
         ownerId: userId,
@@ -176,6 +193,7 @@ export async function createCommunity(input: CreateCommunityInput) {
 export interface UpdateCommunityInput {
   name?: string;
   description?: string;
+  isPrivate?: boolean;
   dominantClass?: TF2Class | null;
   team?: Team | null;
 }
@@ -194,6 +212,16 @@ export async function deleteCommunity(communityId: string) {
 }
 
 export async function joinCommunity(userId: string, communityId: string) {
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { isPrivate: true },
+  });
+  if (!community) return null;
+  if (community.isPrivate) {
+    const err = new Error("Comunidade privada; solicite entrada ou aguarde convite.");
+    (err as Error & { code?: string }).code = "COMMUNITY_PRIVATE";
+    throw err;
+  }
   const existing = await getMember(userId, communityId);
   if (existing) return existing;
   return prisma.$transaction(async (tx) => {
@@ -291,6 +319,7 @@ export async function listHypeCommunities(options: {
           name: c.name,
           description: c.description,
           memberCount: c.memberCount,
+          isPrivate: c.isPrivate,
           dominantClass: c.dominantClass,
           team: c.team,
           ownerId: c.ownerId,
@@ -304,6 +333,7 @@ export async function listHypeCommunities(options: {
         name: c.name,
         description: c.description,
         memberCount: c.memberCount,
+        isPrivate: c.isPrivate,
         dominantClass: c.dominantClass,
         team: c.team,
         ownerId: c.ownerId,
@@ -344,6 +374,32 @@ export async function removeMember(communityId: string, targetUserId: string, ac
   return r > 0;
 }
 
+export type CommunityMemberRoleValue = "MEMBER" | "MODERATOR" | "ADMIN";
+
+export async function updateMemberRole(
+  communityId: string,
+  targetUserId: string,
+  actorUserId: string,
+  newRole: CommunityMemberRoleValue
+): Promise<boolean> {
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { ownerId: true },
+  });
+  if (!community) return false;
+  if (community.ownerId === targetUserId) return false; // cannot change owner's role
+  const canManage = await canManageCommunity(actorUserId, communityId);
+  if (!canManage) return false;
+  const target = await getMember(targetUserId, communityId);
+  if (!target) return false;
+  if (target.role === "ADMIN" && community.ownerId !== actorUserId) return false; // only owner can change another admin
+  await prisma.communityMember.update({
+    where: { userId_communityId: { userId: targetUserId, communityId } },
+    data: { role: newRole },
+  });
+  return true;
+}
+
 export async function listCommunityPosts(communityId: string, limit = 50) {
   return prisma.feedItem.findMany({
     where: { communityId },
@@ -381,4 +437,194 @@ export async function createCommunityPost(
     },
     include: { user: true },
   });
+}
+
+// --- Community invites (private communities: only admins can invite) ---
+
+export async function createInvite(communityId: string, inviterId: string, inviteeId: string) {
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { isPrivate: true },
+  });
+  if (!community?.isPrivate) return null;
+  const canManage = await canManageCommunity(inviterId, communityId);
+  if (!canManage) return null;
+  const existingMember = await getMember(inviteeId, communityId);
+  if (existingMember) return null;
+  const existing = await prisma.communityInvite.findUnique({
+    where: { communityId_inviteeId: { communityId, inviteeId } },
+  });
+  if (existing && existing.status === "PENDING") return existing;
+  if (existing && existing.status !== "PENDING") {
+    const invite = await prisma.communityInvite.update({
+      where: { id: existing.id },
+      data: { status: "PENDING" },
+      include: { community: true, inviter: true, invitee: true },
+    });
+    await createNotification({
+      userId: inviteeId,
+      type: "COMMUNITY_INVITE",
+      payload: { inviteId: invite.id, communityId },
+    });
+    return invite;
+  }
+  const invite = await prisma.communityInvite.create({
+    data: { communityId, inviterId, inviteeId, status: "PENDING" },
+    include: { community: true, inviter: true, invitee: true },
+  });
+  await createNotification({
+    userId: inviteeId,
+    type: "COMMUNITY_INVITE",
+    payload: { inviteId: invite.id, communityId },
+  });
+  return invite;
+}
+
+export async function listPendingInvitesForUser(userId: string) {
+  return prisma.communityInvite.findMany({
+    where: { inviteeId: userId, status: "PENDING" },
+    include: { community: true, inviter: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function acceptInvite(inviteId: string, userId: string) {
+  const invite = await prisma.communityInvite.findUnique({
+    where: { id: inviteId },
+    include: { community: true },
+  });
+  if (!invite || invite.inviteeId !== userId || invite.status !== "PENDING") return null;
+  const joined = await prisma.$transaction(async (tx) => {
+    await tx.communityMember.create({
+      data: { userId: invite.inviteeId, communityId: invite.communityId, role: "MEMBER" },
+    });
+    await tx.community.update({
+      where: { id: invite.communityId },
+      data: { memberCount: { increment: 1 } },
+    });
+    await tx.communityInvite.update({
+      where: { id: inviteId },
+      data: { status: "ACCEPTED" },
+    });
+    return getMember(userId, invite.communityId);
+  });
+  return joined;
+}
+
+export async function declineInvite(inviteId: string, userId: string) {
+  const invite = await prisma.communityInvite.findUnique({
+    where: { id: inviteId },
+  });
+  if (!invite || invite.inviteeId !== userId || invite.status !== "PENDING") return false;
+  await prisma.communityInvite.update({
+    where: { id: inviteId },
+    data: { status: "DECLINED" },
+  });
+  return true;
+}
+
+export async function listCommunityInvites(communityId: string, actorUserId: string) {
+  const canManage = await canManageCommunity(actorUserId, communityId);
+  if (!canManage) return [];
+  return prisma.communityInvite.findMany({
+    where: { communityId, status: "PENDING" },
+    include: { invitee: true, inviter: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+// --- Community join requests (private: user requests; admin approves) ---
+
+export async function createJoinRequest(communityId: string, userId: string) {
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { isPrivate: true, ownerId: true },
+  });
+  if (!community?.isPrivate) return null;
+  const existingMember = await getMember(userId, communityId);
+  if (existingMember) return null;
+  const existing = await prisma.communityJoinRequest.findUnique({
+    where: { communityId_userId: { communityId, userId } },
+  });
+  let request: Awaited<ReturnType<typeof prisma.communityJoinRequest.create>> & { community: { id: string }; user: { id: string } };
+  if (existing) {
+    if (existing.status === "PENDING") return existing;
+    request = await prisma.communityJoinRequest.update({
+      where: { id: existing.id },
+      data: { status: "PENDING", reviewedById: null, reviewedAt: null },
+      include: { community: true, user: true },
+    });
+  } else {
+    request = await prisma.communityJoinRequest.create({
+      data: { communityId, userId, status: "PENDING" },
+      include: { community: true, user: true },
+    });
+  }
+  const members = await listCommunityMembers(communityId);
+  const adminIds = new Set<string>();
+  if (community.ownerId) adminIds.add(community.ownerId);
+  members.filter((m) => m.role === "ADMIN").forEach((m) => adminIds.add(m.userId));
+  for (const adminId of adminIds) {
+    await createNotification({
+      userId: adminId,
+      type: "COMMUNITY_JOIN_REQUEST",
+      payload: { joinRequestId: request.id, communityId, userId: request.userId },
+    });
+  }
+  return request;
+}
+
+export async function listJoinRequests(communityId: string, actorUserId: string) {
+  const canManage = await canManageCommunity(actorUserId, communityId);
+  if (!canManage) return [];
+  return prisma.communityJoinRequest.findMany({
+    where: { communityId, status: "PENDING" },
+    include: { user: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function getPendingJoinRequest(communityId: string, userId: string) {
+  return prisma.communityJoinRequest.findUnique({
+    where: { communityId_userId: { communityId, userId } },
+  });
+}
+
+export async function approveJoinRequest(requestId: string, communityId: string, actorUserId: string) {
+  const canManage = await canManageCommunity(actorUserId, communityId);
+  if (!canManage) return null;
+  const request = await prisma.communityJoinRequest.findUnique({
+    where: { id: requestId },
+    include: { community: true },
+  });
+  if (!request || request.communityId !== communityId || request.status !== "PENDING") return null;
+  await prisma.$transaction(async (tx) => {
+    await tx.communityMember.create({
+      data: { userId: request.userId, communityId: request.communityId, role: "MEMBER" },
+    });
+    await tx.community.update({
+      where: { id: request.communityId },
+      data: { memberCount: { increment: 1 } },
+    });
+    await tx.communityJoinRequest.update({
+      where: { id: requestId },
+      data: { status: "APPROVED", reviewedById: actorUserId, reviewedAt: new Date() },
+    });
+  });
+  await deleteByJoinRequestId(requestId);
+  return getMember(request.userId, communityId);
+}
+
+export async function rejectJoinRequest(requestId: string, communityId: string, actorUserId: string) {
+  const canManage = await canManageCommunity(actorUserId, communityId);
+  if (!canManage) return false;
+  const request = await prisma.communityJoinRequest.findUnique({
+    where: { id: requestId },
+  });
+  if (!request || request.communityId !== communityId || request.status !== "PENDING") return false;
+  await prisma.communityJoinRequest.update({
+    where: { id: requestId },
+    data: { status: "REJECTED", reviewedById: actorUserId, reviewedAt: new Date() },
+  });
+  return true;
 }

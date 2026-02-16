@@ -1,6 +1,7 @@
 import { prisma } from "../db/client.js";
 import type { FeedType } from "@prisma/client";
 import { listScrapsReceived, listScrapsSent } from "./scrapService.js";
+import { canModerateCommunity } from "./communityService.js";
 
 type FeedItemWithRelations = Awaited<ReturnType<typeof prisma.feedItem.findMany>>[number] & {
   user: { id: string; name: string; nickname: string; team: string; mainClass: string; level: number; avatar: string | null; online: boolean };
@@ -128,11 +129,21 @@ export async function getFeedItemById(
 export async function deleteFeedItem(feedItemId: string, userId: string): Promise<boolean> {
   const item = await prisma.feedItem.findUnique({
     where: { id: feedItemId },
-    select: { userId: true },
+    select: { userId: true, communityId: true },
   });
-  if (!item || item.userId !== userId) return false;
-  await prisma.feedItem.delete({ where: { id: feedItemId } });
-  return true;
+  if (!item) return false;
+  if (item.userId === userId) {
+    await prisma.feedItem.delete({ where: { id: feedItemId } });
+    return true;
+  }
+  if (item.communityId) {
+    const canMod = await canModerateCommunity(userId, item.communityId);
+    if (canMod) {
+      await prisma.feedItem.delete({ where: { id: feedItemId } });
+      return true;
+    }
+  }
+  return false;
 }
 
 export interface UserMediaItem {

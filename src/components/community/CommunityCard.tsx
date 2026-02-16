@@ -56,7 +56,10 @@ export function CommunityCard({ community, friendsInCommunity: friendsProp }: Co
     <Link to={`/communities/${community.id}`} className="block tf-card hover:ring-2 hover:ring-accent/50 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-visible">
       {/* Banner */}
       <div className={`${teamGradient} px-4 py-2.5 flex items-center justify-between gap-2 min-h-0 overflow-hidden`}>
-        <span className="font-heading text-xs uppercase tracking-widest text-primary-foreground line-clamp-2 break-words leading-tight">
+        <span className="font-heading text-xs uppercase tracking-widest text-primary-foreground line-clamp-2 break-words leading-tight flex items-center gap-1.5">
+          {community.isPrivate && (
+            <span className="shrink-0" title="Comunidade privada">🔒</span>
+          )}
           {community.name}
         </span>
         {community.dominantClass && (

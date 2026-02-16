@@ -32,6 +32,7 @@ const MAX_PINNED = 3;
 
 const PROFILE_TABS = [
   { id: "postagens" as const, label: "Postagens" },
+  { id: "sobre" as const, label: "Sobre" },
   { id: "midia" as const, label: "Mídia" },
   { id: "amigos" as const, label: "Amigos" },
   { id: "steam" as const, label: "Steam" },
@@ -541,6 +542,38 @@ export default function Profile() {
                 </div>
               )}
             </>
+          )}
+
+          {activeTab === "sobre" && (
+            <div className="tf-card p-4 space-y-4">
+              {profileUser && (profileUser.birthDate || profileUser.gender || profileUser.favoriteMap || profileUser.playstyle || profileUser.quote || profileUser.country || profileUser.bio) ? (
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  {profileUser.birthDate && (
+                    <p><span className="text-foreground/80 font-heading uppercase tracking-wider">Data de nascimento:</span> {new Date(profileUser.birthDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</p>
+                  )}
+                  {profileUser.gender && (
+                    <p><span className="text-foreground/80 font-heading uppercase tracking-wider">Gênero:</span> {profileUser.gender}</p>
+                  )}
+                  {profileUser.favoriteMap && (
+                    <p><span className="text-foreground/80 font-heading uppercase tracking-wider">Mapa favorito:</span> {profileUser.favoriteMap}</p>
+                  )}
+                  {profileUser.playstyle && (
+                    <p><span className="text-foreground/80 font-heading uppercase tracking-wider">Estilo:</span> {profileUser.playstyle}</p>
+                  )}
+                  {profileUser.quote && (
+                    <p><span className="text-foreground/80 font-heading uppercase tracking-wider">Frase:</span> {profileUser.quote}</p>
+                  )}
+                  {profileUser.country && (
+                    <p><span className="text-foreground/80 font-heading uppercase tracking-wider">País:</span> {profileUser.country}</p>
+                  )}
+                  {profileUser.bio && (
+                    <div className="pt-1"><span className="text-foreground/80 font-heading uppercase tracking-wider block mb-0.5">Bio:</span><p className="text-muted-foreground whitespace-pre-wrap">{profileUser.bio}</p></div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-sm">Nenhuma informação adicional.</p>
+              )}
+            </div>
           )}
 
           {activeTab === "midia" && (

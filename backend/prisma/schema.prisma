@@ -60,8 +60,17 @@ model User {
   steamLinkedAt   DateTime?
   pinnedAchievementIds Json?     @default("[]")
   pinnedPostIds      Json?      @default("[]")
+  birthDate       DateTime?
+  gender          String?
+  favoriteMap     String?
+  playstyle       String?
+  quote           String?
+  country         String?
+  bio             String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  friendshipRequestsSent    FriendshipRequest[] @relation("FriendshipRequestFrom")
+  friendshipRequestsReceived FriendshipRequest[] @relation("FriendshipRequestTo")
   steamGames      UserSteamGame[]
   steamAchievements UserSteamAchievement[]
   feedItems       FeedItem[]
@@ -73,6 +82,10 @@ model User {
   blockedBy       BlockedUser[]     @relation("BlockedUserBlocked")
   communityMembers CommunityMember[]
   communitiesOwned  Community[]         @relation("CommunityOwner")
+  communityInvitesSent   CommunityInvite[]  @relation("CommunityInviter")
+  communityInvitesReceived CommunityInvite[] @relation("CommunityInvitee")
+  communityJoinRequests  CommunityJoinRequest[] @relation("CommunityJoinRequestUser")
+  communityJoinRequestsReviewed CommunityJoinRequest[] @relation("CommunityJoinRequestReviewer")
   postComments    PostComment[]
   feedItemReactions FeedItemReaction[]
   commentReactions  CommentReaction[]
@@ -80,6 +93,25 @@ model User {
   conversationsAs1  Conversation[] @relation("ConversationUser1")
   conversationsAs2  Conversation[] @relation("ConversationUser2")
   chatMessagesSent  ChatMessage[]
+  notifications     Notification[]
+}
+
+enum NotificationType {
+  SCRAP
+  FRIEND_REQUEST
+  COMMUNITY_INVITE
+  CHAT_MESSAGE
+  COMMUNITY_JOIN_REQUEST
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  payload   Json
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
 }
 
 model Friendship {
@@ -90,6 +122,24 @@ model Friendship {
   user2    User   @relation("FriendshipUser2", fields: [user2Id], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   @@unique([user1Id, user2Id])
+}
+
+enum FriendshipRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model FriendshipRequest {
+  id        String                 @id @default(cuid())
+  fromUserId String
+  toUserId   String
+  from       User                   @relation("FriendshipRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  to         User                   @relation("FriendshipRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  status    FriendshipRequestStatus @default(PENDING)
+  createdAt DateTime               @default(now())
+  respondedAt DateTime?
+  @@unique([fromUserId, toUserId])
 }
 
 model BlockedUser {
@@ -207,7 +257,20 @@ model ScrapMessageReaction {
 
 enum CommunityMemberRole {
   MEMBER
+  MODERATOR
   ADMIN
+}
+
+enum CommunityInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum CommunityJoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model Community {
@@ -215,6 +278,7 @@ model Community {
   name          String
   description   String
   memberCount   Int              @default(0)
+  isPrivate     Boolean          @default(false)
   dominantClass TF2Class?
   team          Team?
   ownerId       String?
@@ -222,6 +286,35 @@ model Community {
   createdAt     DateTime        @default(now())
   members       CommunityMember[]
   feedItems     FeedItem[]
+  invites       CommunityInvite[]
+  joinRequests  CommunityJoinRequest[]
+}
+
+model CommunityInvite {
+  id         String               @id @default(cuid())
+  communityId String
+  community   Community           @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  inviterId   String
+  inviter     User                @relation("CommunityInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  inviteeId   String
+  invitee     User                @relation("CommunityInvitee", fields: [inviteeId], references: [id], onDelete: Cascade)
+  status      CommunityInviteStatus @default(PENDING)
+  createdAt   DateTime            @default(now())
+  @@unique([communityId, inviteeId])
+}
+
+model CommunityJoinRequest {
+  id           String                    @id @default(cuid())
+  communityId  String
+  community    Community                @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User                     @relation("CommunityJoinRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  status       CommunityJoinRequestStatus @default(PENDING)
+  reviewedById String?
+  reviewedBy   User?                    @relation("CommunityJoinRequestReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  createdAt    DateTime                 @default(now())
+  @@unique([communityId, userId])
 }
 
 model CommunityMember {

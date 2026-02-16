@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { listScrapsReceived, listScrapsSent, createScrap } from "../services/scrapService.js";
+import { createNotification } from "../services/notificationService.js";
 import { scrapToJSON } from "../views/scrapView.js";
 
 const attachmentSchema = z.object({
@@ -70,6 +71,11 @@ export async function postScrap(req: Request, res: Response) {
       content: content.trim(),
       reaction: parsed.data.reaction,
       attachments: parsed.data.attachments,
+    });
+    await createNotification({
+      userId: parsed.data.toUserId,
+      type: "SCRAP",
+      payload: { scrapId: scrap.id },
     });
     res.status(201).json(scrapToJSON(scrap, "sent"));
   } catch {

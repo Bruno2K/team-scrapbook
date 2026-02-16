@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import type { CreateCommunityInput } from "@/api/communities";
 
 const TF2_CLASSES: TF2Class[] = [
@@ -26,6 +27,7 @@ export function CreateCommunityModal({
 }: CreateCommunityModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [dominantClass, setDominantClass] = useState<string>("");
   const [team, setTeam] = useState<string>("");
 
@@ -35,11 +37,13 @@ export function CreateCommunityModal({
     await onSubmit({
       name: name.trim(),
       description: description.trim(),
+      isPrivate,
       dominantClass: dominantClass || undefined,
       team: team || undefined,
     });
     setName("");
     setDescription("");
+    setIsPrivate(false);
     setDominantClass("");
     setTeam("");
   };
@@ -73,6 +77,15 @@ export function CreateCommunityModal({
               rows={3}
               className="mt-1 w-full rounded border border-input bg-background px-3 py-2 text-sm"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="create-private"
+              checked={isPrivate}
+              onCheckedChange={setIsPrivate}
+              className="data-[state=checked]:bg-accent"
+            />
+            <Label htmlFor="create-private" className="cursor-pointer">Comunidade privada</Label>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

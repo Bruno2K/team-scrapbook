@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import type { UpdateCommunityInput } from "@/api/communities";
 
 const TF2_CLASSES: TF2Class[] = [
@@ -29,6 +30,7 @@ export function EditCommunityModal({
 }: EditCommunityModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [dominantClass, setDominantClass] = useState<string>("");
   const [team, setTeam] = useState<string>("");
 
@@ -36,6 +38,7 @@ export function EditCommunityModal({
     if (community) {
       setName(community.name);
       setDescription(community.description);
+      setIsPrivate(community.isPrivate ?? false);
       setDominantClass(community.dominantClass ?? "");
       setTeam(community.team ?? "");
     }
@@ -47,6 +50,7 @@ export function EditCommunityModal({
     await onSubmit({
       name: name.trim(),
       description: description.trim(),
+      isPrivate,
       dominantClass: dominantClass || null,
       team: team || null,
     });
@@ -80,6 +84,15 @@ export function EditCommunityModal({
               rows={3}
               className="mt-1 w-full rounded border border-input bg-background px-3 py-2 text-sm"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="edit-private"
+              checked={isPrivate}
+              onCheckedChange={setIsPrivate}
+              className="data-[state=checked]:bg-accent"
+            />
+            <Label htmlFor="edit-private" className="cursor-pointer">Comunidade privada</Label>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

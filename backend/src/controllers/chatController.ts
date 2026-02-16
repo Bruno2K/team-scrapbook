@@ -10,6 +10,7 @@ import {
 } from "../services/chatService.js";
 import { conversationToJSON, chatMessageToJSON } from "../views/chatView.js";
 import { prisma } from "../db/client.js";
+import { createNotification } from "../services/notificationService.js";
 
 const createConversationSchema = z.object({
   otherUserId: z.string().min(1, "otherUserId é obrigatório"),
@@ -107,10 +108,6 @@ export async function postMessage(req: Request, res: Response) {
     res.status(403).json({ message: "Não é possível enviar mensagem nesta conversa" });
     return;
   }
-  const json = chatMessageToJSON(message);
-  res.status(201).json(json);
-
-  // If recipient is AI-managed, generate reply in background and push via Socket to human
   const conv = await prisma.conversation.findUnique({
     where: { id: conversationId },
     select: { user1Id: true, user2Id: true },
@@ -120,6 +117,17 @@ export async function postMessage(req: Request, res: Response) {
       ? conv.user2Id
       : conv.user1Id
     : null;
+  if (recipientId) {
+    await createNotification({
+      userId: recipientId,
+      type: "CHAT_MESSAGE",
+      payload: { conversationId, messageId: message.id },
+    });
+  }
+  const json = chatMessageToJSON(message);
+  res.status(201).json(json);
+
+  // If recipient is AI-managed, generate reply in background and push via Socket to human
   if (recipientId) {
     setImmediate(async () => {
       const aiMessage = await triggerAiReplyIfNeeded(

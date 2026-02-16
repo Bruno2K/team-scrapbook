@@ -11,6 +11,7 @@ import { ConfirmUnblockUserModal } from "@/components/friends/ConfirmUnblockUser
 import { SendScrapDialog } from "@/components/scrapbook/SendScrapDialog";
 import {
   useFriends,
+  useFriendRequests,
   useBlocked,
   useAvailableToAdd,
   useRecommendations,
@@ -18,10 +19,13 @@ import {
   useRemoveFriend,
   useBlockUser,
   useUnblockUser,
+  useAcceptFriendRequest,
+  useDeclineFriendRequest,
 } from "@/hooks/useFriends";
 import { useGetOrCreateConversation } from "@/hooks/useChat";
 import { useChat } from "@/contexts/ChatContext";
 import { getStoredToken } from "@/api/auth";
+import { toast } from "sonner";
 
 const TABS = [
   { id: "squad" as const, label: "Squad", icon: "⚔️" },
@@ -36,6 +40,7 @@ export default function Friends() {
   const [tab, setTab] = useState<TabId>("squad");
   const [addSearch, setAddSearch] = useState("");
   const { friends, onlineFriends, offlineFriends, isLoading: friendsLoading } = useFriends();
+  const { friendRequests, isLoading: requestsLoading } = useFriendRequests();
   const { available, isLoading: availableLoading } = useAvailableToAdd();
   const { recommendations, isLoading: recLoading } = useRecommendations();
   const { blocked, isLoading: blockedLoading } = useBlocked();
@@ -43,6 +48,8 @@ export default function Friends() {
   const removeFriendMutation = useRemoveFriend();
   const blockUserMutation = useBlockUser();
   const unblockUserMutation = useUnblockUser();
+  const acceptRequestMutation = useAcceptFriendRequest();
+  const declineRequestMutation = useDeclineFriendRequest();
 
   const [removeTarget, setRemoveTarget] = useState<User | null>(null);
   const [blockTarget, setBlockTarget] = useState<User | null>(null);
@@ -114,14 +121,50 @@ export default function Friends() {
         <div className="list-scroll pr-1">
         {tab === "squad" && (
           <>
+            {friendRequests.length > 0 && (
+              <div className="mb-4">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 font-heading">Solicitações de entrada</p>
+                <div className="space-y-2">
+                  {friendRequests.map((req) => (
+                    <div
+                      key={req.id}
+                      className="tf-card p-3 flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0 flex items-center gap-2">
+                        <span className="text-sm font-bold truncate">{req.from.nickname}</span>
+                        <span className="text-[10px] text-muted-foreground truncate">quer entrar na squad</span>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => acceptRequestMutation.mutate(req.id)}
+                          disabled={acceptRequestMutation.isPending}
+                          className="px-2 py-1 rounded text-[10px] font-heading uppercase bg-accent text-accent-foreground hover:brightness-110 disabled:opacity-50"
+                        >
+                          Aceitar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => declineRequestMutation.mutate(req.id)}
+                          disabled={declineRequestMutation.isPending}
+                          className="px-2 py-1 rounded text-[10px] font-heading uppercase border border-border hover:bg-muted"
+                        >
+                          Recusar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {friendsLoading ? (
               <p className="text-muted-foreground text-sm">Carregando squad…</p>
-            ) : friends.length === 0 ? (
+            ) : friends.length === 0 && friendRequests.length === 0 ? (
               <div className="tf-card p-6 text-center text-muted-foreground text-sm">
                 <p className="mb-2">Nenhum amigo na squad ainda.</p>
-                <p className="text-[10px]">Use a aba &quot;Adicionar amigos&quot; para encontrar agentes.</p>
+                <p className="text-[10px]">Use a aba &quot;Adicionar amigos&quot; para encontrar agentes ou aceite solicitações acima.</p>
               </div>
-            ) : (
+            ) : friends.length === 0 ? null : (
               <div className="space-y-2">
                 {onlineFriends.length > 0 && (
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Online</p>
@@ -210,7 +253,11 @@ export default function Friends() {
                                   key={u.id}
                                   user={u}
                                   variant="available"
-                                  onAdd={() => addFriendMutation.mutate(u.id)}
+                                  onAdd={() =>
+                                    addFriendMutation.mutate(u.id, {
+                                      onSuccess: (data) => toast.success(data?.message ?? "Solicitação enviada"),
+                                    })
+                                  }
                                   addLoading={addFriendMutation.isPending}
                                 />
                               ))}
@@ -228,7 +275,11 @@ export default function Friends() {
                                   key={u.id}
                                   user={u}
                                   variant="available"
-                                  onAdd={() => addFriendMutation.mutate(u.id)}
+                                  onAdd={() =>
+                                    addFriendMutation.mutate(u.id, {
+                                      onSuccess: (data) => toast.success(data?.message ?? "Solicitação enviada"),
+                                    })
+                                  }
                                   addLoading={addFriendMutation.isPending}
                                 />
                               ))}

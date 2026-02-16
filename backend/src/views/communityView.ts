@@ -8,6 +8,7 @@ export interface CommunityJSON {
   name: string;
   description: string;
   members: number;
+  isPrivate?: boolean;
   dominantClass?: string;
   team?: string;
 }
@@ -24,6 +25,7 @@ export function communityToJSON(c: PrismaCommunity): CommunityJSON {
     name: c.name,
     description: c.description,
     members: c.memberCount,
+    isPrivate: c.isPrivate ?? false,
     dominantClass: c.dominantClass ?? undefined,
     team: c.team ?? undefined,
   };
@@ -35,6 +37,7 @@ export function communityWithMetaToJSON(c: CommunityWithMeta): CommunityListItem
     name: c.name,
     description: c.description,
     members: c.memberCount,
+    isPrivate: c.isPrivate,
     dominantClass: c.dominantClass ?? undefined,
     team: c.team ?? undefined,
     isMember: c.isMember,
@@ -45,6 +48,7 @@ export function communityWithMetaToJSON(c: CommunityWithMeta): CommunityListItem
 export interface CommunityDetailJSON extends CommunityJSON {
   isMember: boolean;
   isAdmin: boolean;
+  isModerator: boolean;
   owner?: { id: string; nickname: string };
 }
 
@@ -53,12 +57,14 @@ type CommunityWithOwner = PrismaCommunity & { owner: User | null };
 export function communityDetailToJSON(
   c: CommunityWithOwner,
   isMember: boolean,
-  isAdmin: boolean
+  isAdmin: boolean,
+  isModerator: boolean
 ): CommunityDetailJSON {
   return {
     ...communityToJSON(c),
     isMember,
     isAdmin,
+    isModerator,
     owner: c.owner ? { id: c.owner.id, nickname: c.owner.nickname } : undefined,
   };
 }

@@ -2,6 +2,7 @@ import { Server as HttpServer } from "http";
 import { Server, type Socket } from "socket.io";
 import { verifyToken } from "./services/authService.js";
 import { createMessage, isParticipant, triggerAiReplyIfNeeded } from "./services/chatService.js";
+import { createNotification } from "./services/notificationService.js";
 import { chatMessageToJSON } from "./views/chatView.js";
 import { prisma } from "./db/client.js";
 
@@ -75,6 +76,11 @@ export function setupSocket(httpServer: HttpServer): Server {
       });
       if (conv) {
         const recipientId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+        await createNotification({
+          userId: recipientId,
+          type: "CHAT_MESSAGE",
+          payload: { conversationId, messageId: message.id },
+        });
         io.to(`user:${recipientId}`).emit("message", json);
         socket.emit("message", json);
         // If recipient is AI-managed, generate reply and emit to human

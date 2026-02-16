@@ -11,7 +11,13 @@ import { uploadFileToR2 } from "@/api/upload";
 import { isApiConfigured } from "@/api/client";
 import { ChevronDown, X } from "lucide-react";
 
-const TABS = [
+const MAIN_TABS = [
+  { id: "steam" as const, label: "Minha Steam", icon: "🎮" },
+  { id: "account" as const, label: "Conta", icon: "👤" },
+];
+type MainTabId = "steam" | "account";
+
+const STEAM_SUBTABS = [
   { id: "steam" as const, label: "Steam", icon: "🎮" },
   { id: "atividade" as const, label: "Atividade recente", icon: "📅" },
   { id: "jogos" as const, label: "Meus jogos", icon: "📋" },
@@ -19,12 +25,41 @@ const TABS = [
 ];
 type TabId = "steam" | "atividade" | "jogos" | "conquistas";
 
+const GENDER_OPTIONS = [
+  { value: "", label: "Prefiro não dizer" },
+  { value: "Mercenary", label: "Mercenário" },
+  { value: "RED", label: "RED" },
+  { value: "BLU", label: "BLU" },
+  { value: "Other", label: "Outro" },
+];
+
+const PLAYSTYLE_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "Aggressive", label: "Agressivo" },
+  { value: "Support", label: "Suporte" },
+  { value: "Defense", label: "Defesa" },
+  { value: "Flanker", label: "Flanco" },
+  { value: "Sniper", label: "Sniper" },
+];
+
 export default function Settings() {
   const { user, refetch } = useUser();
   const queryClient = useQueryClient();
   const meKey = useMeQueryKey();
+  const [mainTab, setMainTab] = useState<MainTabId>("steam");
   const [activeTab, setActiveTab] = useState<TabId>("steam");
   const [steamInput, setSteamInput] = useState("");
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [accountMessage, setAccountMessage] = useState<string | null>(null);
+  const [accountName, setAccountName] = useState("");
+  const [accountNickname, setAccountNickname] = useState("");
+  const [accountBirthDate, setAccountBirthDate] = useState("");
+  const [accountGender, setAccountGender] = useState("");
+  const [accountFavoriteMap, setAccountFavoriteMap] = useState("");
+  const [accountPlaystyle, setAccountPlaystyle] = useState("");
+  const [accountQuote, setAccountQuote] = useState("");
+  const [accountCountry, setAccountCountry] = useState("");
+  const [accountBio, setAccountBio] = useState("");
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [unlinkLoading, setUnlinkLoading] = useState(false);
@@ -63,6 +98,20 @@ export default function Settings() {
       }
     });
   }, [pinnedSaving]);
+
+  useEffect(() => {
+    if (user && mainTab === "account") {
+      setAccountName(user.name ?? "");
+      setAccountNickname(user.nickname ?? "");
+      setAccountBirthDate(user.birthDate ?? "");
+      setAccountGender(user.gender ?? "");
+      setAccountFavoriteMap(user.favoriteMap ?? "");
+      setAccountPlaystyle(user.playstyle ?? "");
+      setAccountQuote(user.quote ?? "");
+      setAccountCountry(user.country ?? "");
+      setAccountBio(user.bio ?? "");
+    }
+  }, [user, mainTab]);
 
   const hasSteam = Boolean(user.steamId64);
   const totalHours = user.steamTotalPlaytimeMinutes != null
@@ -312,7 +361,170 @@ export default function Settings() {
         </section>
 
         <div className="flex-shrink-0 flex flex-wrap gap-1 p-1 bg-muted/50 rounded border border-border mb-3">
-          {TABS.map((t) => (
+          {MAIN_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setMainTab(t.id)}
+              className={`flex-1 min-w-0 py-2 px-3 rounded font-heading text-[10px] uppercase tracking-wider transition-colors inline-flex items-center justify-center gap-1.5
+                ${mainTab === t.id
+                  ? "bg-accent text-accent-foreground tf-shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+            >
+              <span>{t.icon}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {mainTab === "account" && (
+          <div className="flex-1 min-h-0 flex flex-col min-w-0">
+            <div className="list-scroll pr-1 space-y-6">
+            <section className="tf-card p-4 space-y-4">
+              <h2 className="font-heading text-xs text-muted-foreground uppercase tracking-widest">
+                Informações do perfil
+              </h2>
+              {accountMessage && (
+                <p className={`text-sm ${accountMessage.startsWith("Erro") ? "text-destructive" : "text-muted-foreground"}`}>
+                  {accountMessage}
+                </p>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">Nome</label>
+                  <input
+                    type="text"
+                    value={accountName}
+                    onChange={(e) => setAccountName(e.target.value)}
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">Nickname</label>
+                  <input
+                    type="text"
+                    value={accountNickname}
+                    onChange={(e) => setAccountNickname(e.target.value)}
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">Data de nascimento</label>
+                  <input
+                    type="date"
+                    value={accountBirthDate}
+                    onChange={(e) => setAccountBirthDate(e.target.value)}
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">Identidade (TF2)</label>
+                  <select
+                    value={accountGender}
+                    onChange={(e) => setAccountGender(e.target.value)}
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {GENDER_OPTIONS.map((o) => (
+                      <option key={o.value || "none"} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">Mapa favorito</label>
+                  <input
+                    type="text"
+                    value={accountFavoriteMap}
+                    onChange={(e) => setAccountFavoriteMap(e.target.value)}
+                    placeholder="Ex: 2Fort, Badwater"
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">Estilo de jogo</label>
+                  <select
+                    value={accountPlaystyle}
+                    onChange={(e) => setAccountPlaystyle(e.target.value)}
+                    className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    {PLAYSTYLE_OPTIONS.map((o) => (
+                      <option key={o.value || "none"} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">Frase favorita (TF2)</label>
+                <input
+                  type="text"
+                  value={accountQuote}
+                  onChange={(e) => setAccountQuote(e.target.value)}
+                  placeholder="Ex: You are dead. Not big surprise."
+                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">País</label>
+                <input
+                  type="text"
+                  value={accountCountry}
+                  onChange={(e) => setAccountCountry(e.target.value)}
+                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-heading uppercase tracking-wider text-muted-foreground mb-1">Bio</label>
+                <textarea
+                  value={accountBio}
+                  onChange={(e) => setAccountBio(e.target.value)}
+                  rows={4}
+                  maxLength={500}
+                  className="w-full rounded border border-input bg-background px-3 py-2 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">{accountBio.length}/500</p>
+              </div>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  disabled={accountSaving}
+                  onClick={async () => {
+                    setAccountMessage(null);
+                    setAccountSaving(true);
+                    try {
+                      await updateMe({
+                        name: accountName.trim() || undefined,
+                        nickname: accountNickname.trim() || undefined,
+                        birthDate: accountBirthDate || null,
+                        gender: accountGender || null,
+                        favoriteMap: accountFavoriteMap.trim() || null,
+                        playstyle: accountPlaystyle || null,
+                        quote: accountQuote.trim() || null,
+                        country: accountCountry.trim() || null,
+                        bio: accountBio.trim() || null,
+                      });
+                      queryClient.invalidateQueries({ queryKey: meKey });
+                      refetch();
+                      setAccountMessage("Perfil atualizado.");
+                    } catch (err) {
+                      setAccountMessage(err instanceof Error ? err.message : "Erro ao salvar.");
+                    } finally {
+                      setAccountSaving(false);
+                    }
+                  }}
+                  className="px-4 py-2 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground hover:brightness-110 disabled:opacity-50"
+                >
+                  {accountSaving ? "Salvando…" : "Salvar"}
+                </button>
+              </div>
+            </section>
+            </div>
+          </div>
+        )}
+
+        {mainTab === "steam" && (
+        <>
+        <div className="flex-shrink-0 flex flex-wrap gap-1 p-1 bg-muted/50 rounded border border-border mb-3">
+          {STEAM_SUBTABS.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -802,6 +1014,8 @@ export default function Settings() {
             </section>
           )}
         </div>
+        </>
+        )}
       </div>
     </MainLayout>
   );
