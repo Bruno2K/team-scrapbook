@@ -13,7 +13,16 @@ import {
   joinCommunity,
   leaveCommunity,
   removeMember,
+  updateMemberRole,
   postToCommunity,
+  createJoinRequest,
+  getMyPendingJoinRequest,
+  getCommunityJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
+  postInvite,
+  getMyPendingInvites,
+  acceptCommunityInvite,
 } from "@/api/communities";
 import type { CreateCommunityInput, GetCommunitiesParams, UpdateCommunityInput } from "@/api/communities";
 
@@ -89,6 +98,8 @@ function useInvalidateCommunity(communityId: string | undefined) {
       qc.invalidateQueries({ queryKey: COMMUNITY_QUERY_KEY(communityId) });
       qc.invalidateQueries({ queryKey: COMMUNITY_MEMBERS_QUERY_KEY(communityId) });
       qc.invalidateQueries({ queryKey: COMMUNITY_POSTS_QUERY_KEY(communityId) });
+      qc.invalidateQueries({ queryKey: [...COMMUNITY_QUERY_KEY(communityId), "join-request"] });
+      qc.invalidateQueries({ queryKey: [...COMMUNITY_QUERY_KEY(communityId), "join-requests"] });
     }
   };
 }
@@ -145,6 +156,15 @@ export function useRemoveMember(communityId: string) {
   });
 }
 
+export function useUpdateMemberRole(communityId: string) {
+  const invalidate = useInvalidateCommunity(communityId);
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: import("@/api/communities").CommunityMemberRoleValue }) =>
+      updateMemberRole(communityId, userId, role),
+    onSuccess: invalidate,
+  });
+}
+
 export interface PostToCommunityPayload {
   content: string;
   allowComments?: boolean;
@@ -166,5 +186,110 @@ export function usePostToCommunity(communityId: string) {
       });
     },
     onSuccess: invalidate,
+  });
+}
+
+export function useMyPendingJoinRequest(communityId: string | undefined) {
+  const { data, isLoading } = useQuery({
+    queryKey: [...COMMUNITY_QUERY_KEY(communityId ?? ""), "join-request"],
+    queryFn: () => getMyPendingJoinRequest(communityId!),
+    enabled: !!communityId,
+  });
+  return { pendingRequest: data, isLoading };
+}
+
+export function useCommunityJoinRequests(communityId: string | undefined) {
+  const { data: requests = [], isLoading } = useQuery({
+    queryKey: [...COMMUNITY_QUERY_KEY(communityId ?? ""), "join-requests"],
+    queryFn: () => getCommunityJoinRequests(communityId!),
+    enabled: !!communityId,
+  });
+  return { joinRequests: requests, isLoading };
+}
+
+export function useCreateJoinRequest(communityId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => createJoinRequest(communityId),
+    onSuccess: () => {
+      const key = [...COMMUNITY_QUERY_KEY(communityId), "join-request"] as const;
+      qc.setQueryData(key, { pending: true });
+    },
+  });
+}
+
+export function useApproveJoinRequest(communityId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (requestId: string) => approveJoinRequest(communityId, requestId),
+    onSuccess: (_, requestId) => {
+      const listKey = [...COMMUNITY_QUERY_KEY(communityId), "join-requests"] as const;
+      qc.setQueryData(listKey, (old: unknown[] | undefined) =>
+        Array.isArray(old) ? old.filter((r: { id: string }) => r.id !== requestId) : old
+      );
+      void qc.refetchQueries({ queryKey: COMMUNITY_MEMBERS_QUERY_KEY(communityId) });
+    },
+  });
+}
+
+export function useRejectJoinRequest(communityId: string) {
+  const qc = useQueryClient();
+  const invalidate = useInvalidateCommunity(communityId);
+  return useMutation({
+    mutationFn: (requestId: string) => rejectJoinRequest(communityId, requestId),
+    onSuccess: async () => {
+      invalidate();
+      await qc.refetchQueries({ queryKey: [...COMMUNITY_QUERY_KEY(communityId), "join-requests"] });
+    },
+  });
+}
+
+export function usePostInvite(communityId: string) {
+  const invalidate = useInvalidateCommunity(communityId);
+  return useMutation({
+    mutationFn: (inviteeId: string) => postInvite(communityId, inviteeId),
+    onSuccess: invalidate,
+  });
+}
+
+export const MY_PENDING_INVITES_QUERY_KEY = ["communities", "invites", "me"] as const;
+
+export function useMyPendingInvites() {
+  const { data: invites = [], isLoading } = useQuery({
+    queryKey: MY_PENDING_INVITES_QUERY_KEY,
+    queryFn: getMyPendingInvites,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
+  });
+  return { pendingInvites: invites, isLoading };
+}
+
+export function useAcceptCommunityInvite(communityId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) => acceptCommunityInvite(communityId, inviteId),
+    onMutate: () => {
+      const commKey = COMMUNITY_QUERY_KEY(communityId);
+      const prevCommunity = qc.getQueryData(commKey);
+      const prevInvites = qc.getQueryData(MY_PENDING_INVITES_QUERY_KEY);
+      qc.setQueryData(MY_PENDING_INVITES_QUERY_KEY, (old: { communityId: string }[] | undefined) =>
+        Array.isArray(old) ? old.filter((inv) => inv.communityId !== communityId) : old
+      );
+      qc.setQueryData(commKey, (old: { isMember?: boolean; members?: number } | undefined) =>
+        old ? { ...old, isMember: true, members: ((old.members as number) ?? 0) + 1 } : old
+      );
+      return { prevCommunity, prevInvites };
+    },
+    onError: (_err, _inviteId, context) => {
+      if (context?.prevCommunity != null) {
+        qc.setQueryData(COMMUNITY_QUERY_KEY(communityId), context.prevCommunity);
+      }
+      if (context?.prevInvites != null) {
+        qc.setQueryData(MY_PENDING_INVITES_QUERY_KEY, context.prevInvites);
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: COMMUNITY_QUERY_KEY(communityId) });
+    },
   });
 }

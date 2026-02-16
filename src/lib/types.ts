@@ -52,6 +52,14 @@ export interface User {
   pinnedAchievementIds?: string[];
   /** Up to 3 post/scrap IDs pinned on profile (order = display order) */
   pinnedPostIds?: string[];
+  /** Profile (TF2-themed) */
+  birthDate?: string | null;
+  gender?: string | null;
+  favoriteMap?: string | null;
+  playstyle?: string | null;
+  quote?: string | null;
+  country?: string | null;
+  bio?: string | null;
 }
 
 export interface Community {
@@ -59,6 +67,7 @@ export interface Community {
   name: string;
   description: string;
   members: number;
+  isPrivate?: boolean;
   dominantClass?: TF2Class;
   team?: Team;
   /** Present when listing with auth: whether current user is a member. */
@@ -70,12 +79,13 @@ export interface Community {
 export interface CommunityDetail extends Community {
   isMember: boolean;
   isAdmin: boolean;
+  isModerator?: boolean;
   owner?: { id: string; nickname: string };
 }
 
 export interface CommunityMemberRole {
   user: User;
-  role: "MEMBER" | "ADMIN";
+  role: "MEMBER" | "MODERATOR" | "ADMIN";
   joinedAt: string;
 }
 

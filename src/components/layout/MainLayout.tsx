@@ -1,13 +1,15 @@
 import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { logout, getStoredToken } from "@/api/auth";
 import { generateRandomAiActions } from "@/api/aiActions";
+import { useUnreadCount, useNotifications } from "@/hooks/useNotifications";
 import { ChatLauncher } from "@/components/chat/ChatLauncher";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ChatMaximized } from "@/components/chat/ChatMaximized";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +68,9 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
       setAiActionsLoading(false);
     }
   };
+  const hasToken = !!getStoredToken();
+  const { unreadCount } = useUnreadCount({ enabled: hasToken });
+  const { notifications: recentNotifications } = useNotifications({ limit: 10 }, { enabled: hasToken });
   const navItems = [
     { label: "Feed", icon: "📋", to: "/" },
     { label: "Perfil", icon: "👤", to: "/profile" },
@@ -74,6 +79,17 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
     { label: "Comunidades", icon: "🏰", to: "/communities" },
     { label: "Conta", icon: "⚙️", to: "/settings" },
   ];
+
+  const notificationLabel = (type: string) => {
+    switch (type) {
+      case "SCRAP": return "Novo recado";
+      case "FRIEND_REQUEST": return "Solicitação de amizade";
+      case "COMMUNITY_INVITE": return "Convite para comunidade";
+      case "CHAT_MESSAGE": return "Nova mensagem";
+      case "COMMUNITY_JOIN_REQUEST": return "Solicitação de entrada na comunidade";
+      default: return "Notificação";
+    }
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden tf-texture">
@@ -107,7 +123,57 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
                 </Link>
               );
             })}
-            {getStoredToken() ? (
+            {hasToken && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="relative px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted transition-all inline-flex items-center"
+                    aria-label="Notificações"
+                  >
+                    <Bell className="h-4 w-4" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 max-h-[70vh] overflow-y-auto" align="end">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
+                      <h3 className="font-heading text-xs uppercase tracking-wider">Notificações</h3>
+                      <Link
+                        to="/notifications"
+                        className="text-[10px] font-heading uppercase text-accent hover:underline"
+                      >
+                        Ver todas
+                      </Link>
+                    </div>
+                    {recentNotifications.length === 0 ? (
+                      <p className="text-xs text-muted-foreground py-2">Nenhuma notificação.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {recentNotifications.map((n) => (
+                          <li key={n.id}>
+                            <Link
+                              to="/notifications"
+                              className={`block py-2 px-2 rounded text-xs hover:bg-muted ${!n.readAt ? "font-medium" : "text-muted-foreground"}`}
+                            >
+                              <span className="block">{notificationLabel(n.type)}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {new Date(n.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+            {hasToken ? (
               <button
                 type="button"
                 onClick={() => {

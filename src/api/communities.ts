@@ -72,6 +72,7 @@ export async function getCommunity(id: string): Promise<CommunityDetail | null> 
 export interface CreateCommunityInput {
   name: string;
   description: string;
+  isPrivate?: boolean;
   dominantClass?: string;
   team?: string;
 }
@@ -86,6 +87,7 @@ export async function createCommunity(data: CreateCommunityInput): Promise<Commu
 export interface UpdateCommunityInput {
   name?: string;
   description?: string;
+  isPrivate?: boolean;
   dominantClass?: string | null;
   team?: string | null;
 }
@@ -122,6 +124,19 @@ export async function removeMember(communityId: string, userId: string): Promise
   await apiRequest(`/communities/${communityId}/members/${userId}`, { method: "DELETE" });
 }
 
+export type CommunityMemberRoleValue = "MEMBER" | "MODERATOR" | "ADMIN";
+
+export async function updateMemberRole(
+  communityId: string,
+  userId: string,
+  role: CommunityMemberRoleValue
+): Promise<void> {
+  await apiRequest(`/communities/${communityId}/members/${userId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+}
+
 export async function getCommunityPosts(id: string): Promise<FeedItem[]> {
   if (!isApiConfigured()) return [];
   try {
@@ -150,5 +165,97 @@ export async function postToCommunity(
       allowReactions: options?.allowReactions,
       attachments: options?.attachments,
     }),
+  });
+}
+
+// --- Private communities: join requests and invites ---
+
+export interface CommunityInviteItem {
+  id: string;
+  communityId: string;
+  community: { id: string; name: string };
+  inviter: { id: string; nickname: string; name: string };
+  createdAt: string;
+}
+
+export async function getMyPendingInvites(): Promise<CommunityInviteItem[]> {
+  if (!isApiConfigured()) return [];
+  try {
+    return await apiRequest<CommunityInviteItem[]>("/communities/invites/me");
+  } catch {
+    return [];
+  }
+}
+
+export interface CommunityJoinRequestItem {
+  id: string;
+  userId: string;
+  user: { id: string; nickname: string; name: string };
+  createdAt: string;
+}
+
+export async function getCommunityJoinRequests(communityId: string): Promise<CommunityJoinRequestItem[]> {
+  if (!isApiConfigured()) return [];
+  try {
+    return await apiRequest<CommunityJoinRequestItem[]>(`/communities/${communityId}/join-requests`);
+  } catch {
+    return [];
+  }
+}
+
+export interface PendingJoinRequestResponse {
+  pending: boolean;
+  id?: string;
+  status?: string;
+  createdAt?: string;
+}
+
+export async function getMyPendingJoinRequest(communityId: string): Promise<PendingJoinRequestResponse> {
+  if (!isApiConfigured()) return { pending: false };
+  try {
+    return await apiRequest<PendingJoinRequestResponse>(`/communities/${communityId}/join-request`);
+  } catch {
+    return { pending: false };
+  }
+}
+
+export async function createJoinRequest(communityId: string): Promise<{ id: string; status: string; createdAt: string }> {
+  return apiRequest(`/communities/${communityId}/join-request`, {
+    method: "POST",
+  });
+}
+
+export async function approveJoinRequest(communityId: string, requestId: string): Promise<void> {
+  await apiRequest(`/communities/${communityId}/join-requests/${requestId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "approve" }),
+  });
+}
+
+export async function rejectJoinRequest(communityId: string, requestId: string): Promise<void> {
+  await apiRequest(`/communities/${communityId}/join-requests/${requestId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "reject" }),
+  });
+}
+
+export async function postInvite(communityId: string, inviteeId: string): Promise<void> {
+  await apiRequest(`/communities/${communityId}/invites`, {
+    method: "POST",
+    body: JSON.stringify({ inviteeId }),
+  });
+}
+
+export async function acceptCommunityInvite(communityId: string, inviteId: string): Promise<void> {
+  await apiRequest(`/communities/${communityId}/invites/${inviteId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "accept" }),
+  });
+}
+
+export async function declineCommunityInvite(communityId: string, inviteId: string): Promise<void> {
+  await apiRequest(`/communities/${communityId}/invites/${inviteId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action: "decline" }),
   });
 }

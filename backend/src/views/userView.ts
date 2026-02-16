@@ -18,6 +18,13 @@ export interface UserJSON {
   steamProfileUrl?: string | null;
   steamGames?: Array<{ appId: number; name: string; iconUrl: string | null; playtimeMinutes: number; playtime2WeeksMinutes: number }>;
   steamTotalPlaytimeMinutes?: number;
+  birthDate?: string | null;
+  gender?: string | null;
+  favoriteMap?: string | null;
+  playstyle?: string | null;
+  quote?: string | null;
+  country?: string | null;
+  bio?: string | null;
 }
 
 /** Minimal user shape needed for JSON (allows Prisma include subsets; team/mainClass can be string) */
@@ -62,6 +69,15 @@ export function userToJSON(user: UserLike): UserJSON {
     ? (rawPinnedPosts as string[]).filter((id): id is string => typeof id === "string")
     : [];
 
+  const u = user as UserLike & {
+    birthDate?: Date | null;
+    gender?: string | null;
+    favoriteMap?: string | null;
+    playstyle?: string | null;
+    quote?: string | null;
+    country?: string | null;
+    bio?: string | null;
+  };
   return {
     id: user.id,
     name: user.name,
@@ -80,5 +96,12 @@ export function userToJSON(user: UserLike): UserJSON {
     steamProfileUrl: user.steamId64 ? `https://steamcommunity.com/profiles/${user.steamId64}` : undefined,
     steamGames,
     steamTotalPlaytimeMinutes: steamGames?.length ? steamTotalPlaytimeMinutes : undefined,
+    birthDate: u.birthDate ? u.birthDate.toISOString().slice(0, 10) : undefined,
+    gender: u.gender ?? undefined,
+    favoriteMap: u.favoriteMap ?? undefined,
+    playstyle: u.playstyle ?? undefined,
+    quote: u.quote ?? undefined,
+    country: u.country ?? undefined,
+    bio: u.bio ?? undefined,
   };
 }

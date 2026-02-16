@@ -43,6 +43,23 @@
   scrollbar-gutter: stable;
 }
 
+/* Date/datetime inputs: match app input style */
+input[type="date"],
+input[type="datetime-local"] {
+  border-radius: 0.375rem;
+  border-width: 1px;
+  border-color: hsl(var(--input));
+  background-color: hsl(var(--background));
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: hsl(var(--foreground));
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  opacity: 0.7;
+  cursor: pointer;
+}
+
 @layer base {
   :root {
     /* TF2 Dark Military Theme */

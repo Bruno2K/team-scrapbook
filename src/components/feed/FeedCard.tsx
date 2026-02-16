@@ -29,6 +29,8 @@ interface FeedCardProps {
   onReactionChange?: () => void;
   /** Callback after post deletion so parent can invalidate. */
   onDelete?: () => void;
+  /** When true, current user can delete this post (e.g. community mod/admin). */
+  canModerate?: boolean;
 }
 
 const REACTION_EMOJI: Record<string, string> = {
@@ -45,7 +47,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   scrap: { label: "RECADO", color: "bg-team-red/20 text-team-red-light" },
 };
 
-export function FeedCard({ item, onReactionChange, onDelete }: FeedCardProps) {
+export function FeedCard({ item, onReactionChange, onDelete, canModerate = false }: FeedCardProps) {
   _log("FeedCard.tsx:render", "FeedCard_render", {
     itemId: item.id,
     contentType: typeof item.content,
@@ -64,6 +66,7 @@ export function FeedCard({ item, onReactionChange, onDelete }: FeedCardProps) {
   const isRelativeTimestamp = timestampText.startsWith("há") || timestampText === "agora";
   const currentUserId = getCurrentUserId();
   const isAuthor = currentUserId !== null && user.id === currentUserId;
+  const canDelete = isAuthor || canModerate;
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
@@ -194,7 +197,7 @@ export function FeedCard({ item, onReactionChange, onDelete }: FeedCardProps) {
         >
           Responder
         </Link>
-        {isAuthor && onDelete && item.type !== "scrap" && (
+        {canDelete && onDelete && item.type !== "scrap" && (
           <button
             type="button"
             onClick={(e) => { e.preventDefault(); setDeleteOpen(true); }}

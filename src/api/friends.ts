@@ -43,11 +43,36 @@ export async function getRecommendations(): Promise<User[]> {
   }
 }
 
-export async function addFriend(userId: string): Promise<void> {
-  await apiRequest("/users/friends", {
+export interface FriendRequestItem {
+  id: string;
+  fromUserId: string;
+  from: User;
+  createdAt: string;
+}
+
+export async function getMyFriendRequests(): Promise<FriendRequestItem[]> {
+  if (!isApiConfigured() || !getStoredToken()) return [];
+  try {
+    return await apiRequest<FriendRequestItem[]>("/users/me/friend-requests");
+  } catch {
+    return [];
+  }
+}
+
+export async function addFriend(userId: string): Promise<{ message: string }> {
+  const res = await apiRequest<{ message: string }>("/users/friends", {
     method: "POST",
     body: JSON.stringify({ userId }),
   });
+  return res;
+}
+
+export async function acceptFriendRequest(requestId: string): Promise<void> {
+  await apiRequest(`/users/me/friend-requests/${requestId}/accept`, { method: "POST" });
+}
+
+export async function declineFriendRequest(requestId: string): Promise<void> {
+  await apiRequest(`/users/me/friend-requests/${requestId}/decline`, { method: "POST" });
 }
 
 export async function removeFriend(userId: string): Promise<void> {

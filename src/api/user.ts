@@ -77,7 +77,20 @@ export async function getUserMedia(userId: string): Promise<{ items: UserMediaIt
   }
 }
 
-export async function updateMe(payload: { avatar?: string | null }): Promise<User> {
+export interface UpdateMePayload {
+  avatar?: string | null;
+  name?: string;
+  nickname?: string;
+  birthDate?: string | null;
+  gender?: string | null;
+  favoriteMap?: string | null;
+  playstyle?: string | null;
+  quote?: string | null;
+  country?: string | null;
+  bio?: string | null;
+}
+
+export async function updateMe(payload: UpdateMePayload): Promise<User> {
   return apiRequest<User>("/users/me", {
     method: "PATCH",
     body: JSON.stringify(payload),

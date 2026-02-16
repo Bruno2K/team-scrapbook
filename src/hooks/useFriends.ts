@@ -4,13 +4,17 @@ import {
   getBlocked,
   getAvailableToAdd,
   getRecommendations,
+  getMyFriendRequests,
   addFriend as apiAddFriend,
   removeFriend as apiRemoveFriend,
   blockUser as apiBlockUser,
   unblockUser as apiUnblockUser,
+  acceptFriendRequest as apiAcceptFriendRequest,
+  declineFriendRequest as apiDeclineFriendRequest,
 } from "@/api/friends";
 
 export const FRIENDS_QUERY_KEY = ["friends"];
+export const FRIEND_REQUESTS_QUERY_KEY = ["friend-requests"];
 export const BLOCKED_QUERY_KEY = ["blocked"];
 export const AVAILABLE_QUERY_KEY = ["available"];
 export const RECOMMENDATIONS_QUERY_KEY = ["recommendations"];
@@ -60,17 +64,45 @@ function useInvalidateFriends() {
   const qc = useQueryClient();
   return () => {
     qc.invalidateQueries({ queryKey: FRIENDS_QUERY_KEY });
+    qc.invalidateQueries({ queryKey: FRIEND_REQUESTS_QUERY_KEY });
     qc.invalidateQueries({ queryKey: BLOCKED_QUERY_KEY });
     qc.invalidateQueries({ queryKey: AVAILABLE_QUERY_KEY });
     qc.invalidateQueries({ queryKey: RECOMMENDATIONS_QUERY_KEY });
   };
 }
 
+export function useFriendRequests() {
+  const { data: friendRequests = [], isLoading, error } = useQuery({
+    queryKey: FRIEND_REQUESTS_QUERY_KEY,
+    queryFn: getMyFriendRequests,
+    staleTime: 0,
+  });
+  return { friendRequests, isLoading, error };
+}
+
+export function useAcceptFriendRequest() {
+  const invalidate = useInvalidateFriends();
+  return useMutation({
+    mutationFn: apiAcceptFriendRequest,
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeclineFriendRequest() {
+  const invalidate = useInvalidateFriends();
+  return useMutation({
+    mutationFn: apiDeclineFriendRequest,
+    onSuccess: invalidate,
+  });
+}
+
 export function useAddFriend() {
   const invalidate = useInvalidateFriends();
   return useMutation({
     mutationFn: apiAddFriend,
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+    },
   });
 }
 

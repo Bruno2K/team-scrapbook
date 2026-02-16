@@ -13,6 +13,23 @@ import { Switch } from "@/components/ui/switch";
 import { EditCommunityModal } from "@/components/community/EditCommunityModal";
 import { ConfirmDeleteCommunityModal } from "@/components/community/ConfirmDeleteCommunityModal";
 import { ConfirmRemoveMemberModal } from "@/components/community/ConfirmRemoveMemberModal";
+import { ConfirmRoleChangeModal } from "@/components/community/ConfirmRoleChangeModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useCommunity,
@@ -24,11 +41,23 @@ import {
   useDeleteCommunity,
   useRemoveMember,
   usePostToCommunity,
+  useMyPendingJoinRequest,
+  useCommunityJoinRequests,
+  useCreateJoinRequest,
+  useApproveJoinRequest,
+  useRejectJoinRequest,
+  usePostInvite,
+  useUpdateMemberRole,
+  useMyPendingInvites,
+  useAcceptCommunityInvite,
   COMMUNITY_POSTS_QUERY_KEY,
+  MY_PENDING_INVITES_QUERY_KEY,
 } from "@/hooks/useCommunities";
+import type { CommunityMemberRoleValue } from "@/api/communities";
+import { useFriends } from "@/hooks/useFriends";
 import { useDeleteFeedItem } from "@/hooks/useFeed";
 import { toast } from "sonner";
-import { getStoredToken } from "@/api/auth";
+import { getStoredToken, getCurrentUserId } from "@/api/auth";
 
 export default function CommunityDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,8 +65,9 @@ export default function CommunityDetail() {
   const queryClient = useQueryClient();
   const hasToken = Boolean(getStoredToken());
   const { community, isLoading: communityLoading } = useCommunity(id);
-  const { members, isLoading: membersLoading } = useCommunityMembers(id);
-  const { posts, isLoading: postsLoading } = useCommunityPosts(id);
+  const canAccessFeedAndMembers = community != null && (community.isMember || !community.isPrivate);
+  const { members, isLoading: membersLoading } = useCommunityMembers(canAccessFeedAndMembers ? id : undefined);
+  const { posts, isLoading: postsLoading } = useCommunityPosts(canAccessFeedAndMembers ? id : undefined);
   const joinMutation = useJoinCommunity(id ?? "");
   const leaveMutation = useLeaveCommunity(id ?? "");
   const updateMutation = useUpdateCommunity(id ?? "");
@@ -45,11 +75,23 @@ export default function CommunityDetail() {
   const removeMemberMutation = useRemoveMember(id ?? "");
   const postMutation = usePostToCommunity(id ?? "");
   const deleteFeedItemMutation = useDeleteFeedItem();
+  const { pendingRequest } = useMyPendingJoinRequest(id);
+  const { joinRequests } = useCommunityJoinRequests(community?.isAdmin && community?.isPrivate ? id : undefined);
+  const createJoinRequestMutation = useCreateJoinRequest(id ?? "");
+  const approveJoinRequestMutation = useApproveJoinRequest(id ?? "");
+  const rejectJoinRequestMutation = useRejectJoinRequest(id ?? "");
+  const postInviteMutation = usePostInvite(id ?? "");
+  const updateMemberRoleMutation = useUpdateMemberRole(id ?? "");
+  const { friends } = useFriends();
+  const { pendingInvites } = useMyPendingInvites();
+  const acceptInviteMutation = useAcceptCommunityInvite(id ?? "");
+  const pendingInviteForCommunity = id ? pendingInvites.find((inv) => inv.communityId === id) : null;
 
   const location = useLocation();
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removeMemberTarget, setRemoveMemberTarget] = useState<User | null>(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState<{ user: User; newRole: CommunityMemberRoleValue } | null>(null);
   const [postContent, setPostContent] = useState("");
   const [allowComments, setAllowComments] = useState(true);
   const [allowReactions, setAllowReactions] = useState(true);
@@ -58,6 +100,15 @@ export default function CommunityDetail() {
   const compactPostBoxRef = useRef(false);
   const [mainTab, setMainTab] = useState<"feed" | "members">("feed");
   const [membersTab, setMembersTab] = useState<"all" | "admins" | "members">("all");
+  const [inviteUserId, setInviteUserId] = useState("");
+  const [manageOpen, setManageOpen] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    if (id && hasToken) {
+      queryClient.invalidateQueries({ queryKey: MY_PENDING_INVITES_QUERY_KEY });
+    }
+  }, [id, hasToken, queryClient]);
 
   useEffect(() => {
     if (location.hash === "#post" && community?.isMember) {
@@ -220,19 +271,47 @@ export default function CommunityDetail() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {!community.isMember && hasToken && (
-                  <button
-                    type="button"
-                    onClick={() => joinMutation.mutate()}
-                    disabled={joinMutation.isPending}
-                    className="px-3 py-1.5 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground tf-shadow-sm hover:brightness-110 disabled:opacity-50"
-                  >
-                    {joinMutation.isPending ? "…" : "Entrar"}
-                  </button>
+                  <>
+                    {community.isPrivate ? (
+                      pendingInviteForCommunity ? (
+                        <button
+                          type="button"
+                          onClick={() => acceptInviteMutation.mutate(pendingInviteForCommunity.id)}
+                          disabled={acceptInviteMutation.isPending}
+                          className="px-3 py-1.5 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground tf-shadow-sm hover:brightness-110 disabled:opacity-50"
+                        >
+                          {acceptInviteMutation.isPending ? "…" : "Aceitar convite"}
+                        </button>
+                      ) : pendingRequest?.pending ? (
+                        <span className="px-3 py-1.5 rounded font-heading text-[10px] uppercase bg-muted text-muted-foreground">
+                          Solicitação enviada
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => createJoinRequestMutation.mutate()}
+                          disabled={createJoinRequestMutation.isPending}
+                          className="px-3 py-1.5 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground tf-shadow-sm hover:brightness-110 disabled:opacity-50"
+                        >
+                          {createJoinRequestMutation.isPending ? "…" : "Solicitar entrada"}
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => joinMutation.mutate()}
+                        disabled={joinMutation.isPending}
+                        className="px-3 py-1.5 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground tf-shadow-sm hover:brightness-110 disabled:opacity-50"
+                      >
+                        {joinMutation.isPending ? "…" : "Entrar"}
+                      </button>
+                    )}
+                  </>
                 )}
                 {community.isMember && (
                   <button
                     type="button"
-                    onClick={() => leaveMutation.mutate()}
+                    onClick={() => setLeaveConfirmOpen(true)}
                     disabled={leaveMutation.isPending}
                     className="px-3 py-1.5 rounded font-heading text-[10px] uppercase border border-border hover:bg-muted"
                   >
@@ -241,6 +320,15 @@ export default function CommunityDetail() {
                 )}
                 {community.isAdmin && (
                   <>
+                    {community.isPrivate && (
+                      <button
+                        type="button"
+                        onClick={() => setManageOpen(true)}
+                        className="px-3 py-1.5 rounded font-heading text-[10px] uppercase border border-border hover:bg-muted"
+                      >
+                        Gerenciar
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setEditOpen(true)}
@@ -262,7 +350,8 @@ export default function CommunityDetail() {
           </div>
         </div>
 
-        {/* Main Tabs */}
+        {/* Main Tabs: hide for non-members of private community */}
+        {(!community.isPrivate || community.isMember) && (
         <div className="flex-shrink-0 flex gap-1 p-1 bg-muted/50 rounded border border-border mt-4 mb-3">
           <button
             type="button"
@@ -287,10 +376,15 @@ export default function CommunityDetail() {
             Membros
           </button>
         </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 min-h-0 flex flex-col min-w-0">
-          {mainTab === "feed" && (
+          {!community.isMember && community.isPrivate ? (
+            <div className="tf-card p-6 text-center text-muted-foreground text-sm mt-4">
+              Esta comunidade é privada. Solicite entrada ou aguarde um convite para ver o feed e os membros.
+            </div>
+          ) : mainTab === "feed" && (
             <div className="flex flex-col flex-1 min-h-0 min-w-0">
             {community.isMember && (
               <form
@@ -372,6 +466,7 @@ export default function CommunityDetail() {
                       item={item}
                       onReactionChange={() => id && queryClient.invalidateQueries({ queryKey: COMMUNITY_POSTS_QUERY_KEY(id) })}
                       onDelete={() => handleDeletePost(item.id)}
+                      canModerate={community.isModerator ?? false}
                     />
                   ))}
                 </div>
@@ -440,18 +535,37 @@ export default function CommunityDetail() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold truncate">{m.user.nickname}</p>
-                        <p className="text-[10px] text-muted-foreground">{m.role === "ADMIN" ? "Admin" : "Membro"}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {m.role === "ADMIN" ? "Admin" : m.role === "MODERATOR" ? "Moderador" : "Membro"}
+                        </p>
                       </div>
                     </div>
-                    {community.isAdmin && m.role !== "ADMIN" && community.owner?.id !== m.user.id && (
-                      <button
-                        type="button"
-                        onClick={() => setRemoveMemberTarget(m.user)}
-                        className="flex-shrink-0 px-2 py-1 text-[10px] uppercase text-destructive hover:bg-destructive/10 rounded"
-                      >
-                        Remover
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {community.isAdmin && community.owner?.id !== m.user.id && (
+                        <select
+                          value={pendingRoleChange?.user.id === m.user.id ? pendingRoleChange.newRole : m.role}
+                          onChange={(e) => {
+                            const newRole = e.target.value as CommunityMemberRoleValue;
+                            if (newRole !== m.role) setPendingRoleChange({ user: m.user, newRole });
+                          }}
+                          disabled={updateMemberRoleMutation.isPending}
+                          className="rounded border border-input bg-background px-2 py-1 text-[10px]"
+                        >
+                          <option value="MEMBER">Membro</option>
+                          <option value="MODERATOR">Moderador</option>
+                          <option value="ADMIN">Admin</option>
+                        </select>
+                      )}
+                      {community.isAdmin && community.owner?.id !== m.user.id && (m.role !== "ADMIN" || community.owner?.id === getCurrentUserId()) && (
+                        <button
+                          type="button"
+                          onClick={() => setRemoveMemberTarget(m.user)}
+                          className="px-2 py-1 text-[10px] uppercase text-destructive hover:bg-destructive/10 rounded"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -483,6 +597,115 @@ export default function CommunityDetail() {
         onConfirm={handleRemoveMember}
         loading={removeMemberMutation.isPending}
       />
+      <AlertDialog open={leaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sair da comunidade?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {community
+                ? `Você deixará de ser membro de "${community.name}". Poderá solicitar entrada novamente depois.`
+                : "Você deixará de ser membro desta comunidade."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={leaveMutation.isPending}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); leaveMutation.mutate(undefined, { onSettled: () => setLeaveConfirmOpen(false) }); }}
+              disabled={leaveMutation.isPending}
+            >
+              {leaveMutation.isPending ? "Saindo…" : "Sair"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <ConfirmRoleChangeModal
+        open={!!pendingRoleChange}
+        onOpenChange={(open) => !open && setPendingRoleChange(null)}
+        user={pendingRoleChange?.user ?? null}
+        newRole={pendingRoleChange?.newRole ?? null}
+        onConfirm={() => {
+          if (pendingRoleChange) {
+            updateMemberRoleMutation.mutate(
+              { userId: pendingRoleChange.user.id, role: pendingRoleChange.newRole },
+              { onSettled: () => setPendingRoleChange(null) }
+            );
+          }
+        }}
+        loading={updateMemberRoleMutation.isPending}
+      />
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gerenciar comunidade privada</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {joinRequests.length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">Solicitações de entrada</p>
+                <ul className="space-y-2">
+                  {joinRequests.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-border last:border-0">
+                      <span className="text-sm truncate">
+                        {r.user.name} (@{r.user.nickname})
+                      </span>
+                      <div className="flex gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => approveJoinRequestMutation.mutate(r.id)}
+                          disabled={approveJoinRequestMutation.isPending}
+                          className="px-2 py-1 rounded text-[10px] font-heading uppercase bg-accent text-accent-foreground hover:brightness-110 disabled:opacity-50"
+                        >
+                          Aprovar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => rejectJoinRequestMutation.mutate(r.id)}
+                          disabled={rejectJoinRequestMutation.isPending}
+                          className="px-2 py-1 rounded text-[10px] font-heading uppercase border border-border hover:bg-muted"
+                        >
+                          Recusar
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div>
+              <p className="text-xs text-muted-foreground mb-2">Convidar usuário</p>
+              <div className="flex flex-wrap gap-2 items-center">
+                <select
+                  value={inviteUserId}
+                  onChange={(e) => setInviteUserId(e.target.value)}
+                  className="rounded border border-input bg-background px-2 py-1.5 text-sm min-w-[140px]"
+                >
+                  <option value="">Selecione um usuário</option>
+                  {friends
+                    .filter((u) => !members.some((m) => m.user.id === u.id))
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.nickname}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (inviteUserId) {
+                      postInviteMutation.mutate(inviteUserId);
+                      setInviteUserId("");
+                    }
+                  }}
+                  disabled={!inviteUserId || postInviteMutation.isPending}
+                  className="px-3 py-1.5 rounded font-heading text-[10px] uppercase bg-accent text-accent-foreground tf-shadow-sm hover:brightness-110 disabled:opacity-50"
+                >
+                  {postInviteMutation.isPending ? "…" : "Convidar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

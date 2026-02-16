@@ -89,6 +89,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: CONVERSATIONS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: messagesQueryKey(msg.conversationId) });
     });
+    socket.on("notification", () => {
+      queryClient.invalidateQueries({ queryKey: ["users", "me", "notifications"] });
+      try {
+        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 800;
+        osc.type = "sine";
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.15);
+      } catch {
+        // ignore if AudioContext not supported
+      }
+    });
     socket.on("typing", (payload: { conversationId: string; userId: string }) => {
       setTypingConversationId(payload.conversationId);
       setTypingUserId(payload.userId);
