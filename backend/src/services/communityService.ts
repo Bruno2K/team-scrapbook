@@ -304,7 +304,7 @@ export async function listHypeCommunities(options: {
 
   const byId = new Map(communities.map((c) => [c.id, c]));
 
-  const result: CommunityWithMeta[] = await Promise.all(
+  const raw = await Promise.all(
     communityIds.map(async (id) => {
       const c = byId.get(id);
       if (!c) return null;
@@ -344,7 +344,7 @@ export async function listHypeCommunities(options: {
   );
 
   // Filter out any nulls (shouldn't normally happen) while preserving order by hype
-  return result.filter((c): c is CommunityWithMeta => c !== null);
+  return raw.filter((c): c is CommunityWithMeta => c !== null);
 }
 
 export async function removeMember(communityId: string, targetUserId: string, actorUserId: string): Promise<boolean> {

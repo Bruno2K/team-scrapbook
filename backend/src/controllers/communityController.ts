@@ -321,7 +321,7 @@ export async function getCommunityPosts(req: Request, res: Response) {
       }
     }
     const items = await listCommunityPosts(id);
-    res.status(200).json(items.map(feedItemToJSON));
+    res.status(200).json(items.map((item) => feedItemToJSON(item)));
   } catch {
     res.status(500).json({ message: "Erro ao carregar publicações" });
   }

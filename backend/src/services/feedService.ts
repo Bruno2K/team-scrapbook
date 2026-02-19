@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db/client.js";
 import type { FeedType } from "@prisma/client";
 import { listScrapsReceived, listScrapsSent } from "./scrapService.js";
@@ -159,7 +160,7 @@ export interface UserMediaItem {
 export async function listUserMedia(userId: string, limit = 100): Promise<UserMediaItem[]> {
   const [feedItems, scraps] = await Promise.all([
     prisma.feedItem.findMany({
-      where: { userId, attachments: { not: null } },
+      where: { userId, attachments: { not: Prisma.JsonNull } },
       orderBy: { createdAt: "desc" },
       take: limit * 2,
       select: { id: true, attachments: true, createdAt: true },
@@ -167,7 +168,7 @@ export async function listUserMedia(userId: string, limit = 100): Promise<UserMe
     prisma.scrapMessage.findMany({
       where: {
         OR: [{ fromUserId: userId }, { toUserId: userId }],
-        attachments: { not: null },
+        attachments: { not: Prisma.JsonNull },
       },
       orderBy: { createdAt: "desc" },
       take: limit * 2,
