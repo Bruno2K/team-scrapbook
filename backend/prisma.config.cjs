@@ -1,12 +1,12 @@
-import "dotenv/config";
+require("dotenv/config");
 
-export default {
+module.exports = {
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? "",
+    url: process.env.DATABASE_URL || "",
   },
 };
