@@ -30,7 +30,7 @@ import { getCommentCountByFeedItemIds, getCommentCountByScrapIds } from "../serv
 import { getScrapById } from "../services/scrapService.js";
 import { feedItemToJSON, scrapToFeedItemJSON } from "../views/feedView.js";
 import { userToJSON } from "../views/userView.js";
-import { commentToJSON } from "../views/commentView.js";
+import { commentToJSON, type CommentWithUser } from "../views/commentView.js";
 
 const attachmentSchema = z.object({
   url: z.string().url(),
@@ -60,7 +60,7 @@ export async function getFeed(req: Request, res: Response) {
     // Buscar reações e comentários para FeedItems
     const [feedReactionCountsMap, feedMyReactionsMap, feedCommentCountMap] = await Promise.all([
       getPostReactionCountsForMany(feedIds),
-      userId ? getMyPostReactionsForMany(feedIds, userId) : Promise.resolve({}),
+      userId ? getMyPostReactionsForMany(feedIds, userId) : Promise.resolve({} as Record<string, ScrapReaction>),
       getCommentCountByFeedItemIds(feedIds),
     ]);
     
@@ -227,7 +227,7 @@ export async function getUserFeed(req: Request, res: Response) {
 
     const [feedReactionCountsMap, feedMyReactionsMap, feedCommentCountMap] = await Promise.all([
       getPostReactionCountsForMany(feedIds),
-      viewerId ? getMyPostReactionsForMany(feedIds, viewerId) : Promise.resolve({}),
+      viewerId ? getMyPostReactionsForMany(feedIds, viewerId) : Promise.resolve({} as Record<string, ScrapReaction>),
       getCommentCountByFeedItemIds(feedIds),
     ]);
 
@@ -314,11 +314,15 @@ export async function getPost(req: Request, res: Response) {
           userId ? getMyScrapReaction(id, userId) : Promise.resolve(null),
           listCommentsByScrapId(id),
         ]);
+        type CommentWithReplies = { replies?: CommentWithReplies[] };
         const commentCount = commentsTree.reduce((acc, c) => {
-          const countReplies = (comment: typeof c): number => {
-            return 1 + comment.replies.reduce((sum, r) => sum + countReplies(r), 0);
+          const countReplies = (comment: CommentWithReplies): number => {
+            return 1 + (comment.replies ?? []).reduce(
+              (sum: number, r: CommentWithReplies) => sum + countReplies(r),
+              0
+            );
           };
-          return acc + countReplies(c);
+          return acc + countReplies(c as CommentWithReplies);
         }, 0);
         const postJson = scrapToFeedItemJSON(scrap, {
           direction,
@@ -453,7 +457,7 @@ export async function createComment(req: Request, res: Response) {
       return;
     }
     const userId = req.user?.id ?? null;
-    res.status(201).json(commentToJSON(result, userId));
+    res.status(201).json(commentToJSON(result as CommentWithUser, userId));
   } catch (err) {
     res.status(500).json({ message: "Erro ao comentar" });
   }

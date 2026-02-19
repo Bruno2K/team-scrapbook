@@ -12,7 +12,7 @@ export interface ReactionCountsJSON {
 
 export interface PostCommentJSON {
   id: string;
-  feedItemId: string;
+  feedItemId: string | null;
   parentId: string | null;
   user: UserJSON;
   content: string;
@@ -22,7 +22,7 @@ export interface PostCommentJSON {
   myReaction: ReactionType | null;
 }
 
-type CommentWithUser = PostComment & {
+export type CommentWithUser = PostComment & {
   user: Parameters<typeof userToJSON>[0];
   reactions: { userId: string; reaction: ScrapReaction }[];
   replies?: CommentWithUser[];
