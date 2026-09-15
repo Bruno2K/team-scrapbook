@@ -41,14 +41,17 @@ describe("feedService", () => {
       expect(mocks.findMany).toHaveBeenCalledWith({
         orderBy: { createdAt: "desc" },
         take: 50,
-        include: { user: true },
+        include: {
+          user: true,
+          community: { select: { id: true, name: true } },
+        },
       });
-      expect(result).toEqual(mockItems);
+      expect(result).toEqual([{ kind: "feed", item: mockItems[0] }]);
     });
 
     it("accepts custom limit", async () => {
       mocks.findMany.mockResolvedValue([]);
-      await listFeed(10);
+      await listFeed(undefined, 10);
       expect(mocks.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ take: 10 })
       );
@@ -74,6 +77,9 @@ describe("feedService", () => {
           userId: "u1",
           content: "Hello",
           type: "post",
+          allowComments: true,
+          allowReactions: true,
+          attachments: undefined,
         },
         include: { user: true },
       });
@@ -92,6 +98,9 @@ describe("feedService", () => {
           userId: "u1",
           content: "Achievement!",
           type: "achievement",
+          allowComments: true,
+          allowReactions: true,
+          attachments: undefined,
         },
         include: { user: true },
       });

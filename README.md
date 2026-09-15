@@ -351,15 +351,22 @@ PostgreSQL; não há modo SQLite suportado. Build, migração, start e versão d
 ## 🧪 Testes
 
 ```bash
-# Executar testes
+# Frontend
 npm test
 
-# Backend (requer DATABASE_URL apontando para PostgreSQL)
-cd backend && npm test
+# Backend unitário (não requer banco)
+cd backend && npm run test:unit
 
-# Modo watch
-npm run test:watch
+# Backend integração (serviço PostgreSQL 16 descartável)
+npm run db:test:up
+# Defina DATABASE_URL=postgresql://postgres:postgres@localhost:55432/team_scrapbook_test
+npm run db:test:prepare
+npm run test:integration
+npm run db:test:down
 ```
+
+Consulte [`docs/operations/repository-baseline.md`](./docs/operations/repository-baseline.md) para
+a sequência local completa equivalente ao CI.
 
 ---
 
@@ -370,12 +377,14 @@ npm run test:watch
 - `npm run build` - Build para produção
 - `npm run preview` - Preview do build de produção
 - `npm run lint` - Executa ESLint
+- `npm run typecheck` - Verifica TypeScript sem gerar artefatos
 
 ### Backend
 - `npm run dev:api` - Inicia backend em modo desenvolvimento
 - `cd backend && npm run build` - Compila TypeScript
 - `cd backend && npm start` - Inicia backend em produção
-- `cd backend && npm test` - Executa testes (requer PostgreSQL)
+- `cd backend && npm test` - Executa testes unitários sem banco
+- `cd backend && npm run test:integration` - Executa integração em PostgreSQL de teste preparado
 
 ### Banco de Dados
 - `cd backend && npx prisma studio` - Abre Prisma Studio (GUI do banco)
