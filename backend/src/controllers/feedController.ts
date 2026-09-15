@@ -297,7 +297,7 @@ export async function getPost(req: Request, res: Response) {
   try {
     const userId = req.user?.id;
     // Tentar buscar como FeedItem primeiro
-    let item = await getFeedItemById(id);
+    const item = await getFeedItemById(id);
     let isScrap = false;
     
     // Se não encontrou, tentar como Scrap

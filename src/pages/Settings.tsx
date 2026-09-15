@@ -164,7 +164,9 @@ export default function Settings() {
     if (steamLink === "ok") {
       setMessage("Conta Steam vinculada com sucesso!");
       window.history.replaceState({}, "", window.location.pathname);
-      queryClient.invalidateQueries({ queryKey: meKey }).then(() => refetch());
+      queryClient.invalidateQueries({ queryKey: meKey }).then(async () => {
+        await refetch();
+      });
     } else if (steamLink === "error" && msg) {
       setLinkError(decodeURIComponent(msg));
       window.history.replaceState({}, "", window.location.pathname);
