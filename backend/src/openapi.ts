@@ -47,6 +47,43 @@ export const openApiSpec = {
         },
       },
     },
+    "/health/ready": {
+      get: {
+        tags: ["Health"],
+        summary: "Database readiness check",
+        description: "Verifies that the API process can execute a minimal PostgreSQL query. This does not check optional external integrations.",
+        responses: {
+          "200": {
+            description: "PostgreSQL is reachable",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["status", "service", "timestamp", "checks", "release"],
+                  properties: {
+                    status: { type: "string", example: "ready" },
+                    service: { type: "string", example: "team-scrapbook-api" },
+                    timestamp: { type: "string", format: "date-time" },
+                    checks: {
+                      type: "object",
+                      properties: { database: { type: "string", example: "ready" } },
+                    },
+                    release: {
+                      type: "object",
+                      properties: {
+                        gitSha: { type: "string", nullable: true },
+                        deploymentId: { type: "string", nullable: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "503": { description: "PostgreSQL is unavailable" },
+        },
+      },
+    },
     "/auth/register": {
       post: {
         tags: ["Auth"],

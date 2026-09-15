@@ -1,0 +1,82 @@
+name: Post-deploy Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      frontend_url:
+        description: Deployed frontend base URL
+        required: true
+        type: string
+      backend_url:
+        description: Deployed backend base URL
+        required: true
+        type: string
+      environment:
+        description: Environment being validated (for example preview or production)
+        required: true
+        type: choice
+        options:
+          - preview
+          - production
+      expected_sha:
+        description: Full Git SHA expected from both target deployments
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Deployed system smoke
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Validate deployed frontend, API configuration, backend, and database
+        env:
+          FRONTEND_URL: ${{ inputs.frontend_url }}
+          BACKEND_URL: ${{ inputs.backend_url }}
+          ENVIRONMENT_NAME: ${{ inputs.environment }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          APPROVED_FRONTEND_URL: ${{ vars.SMOKE_FRONTEND_URL }}
+          APPROVED_BACKEND_URL: ${{ vars.SMOKE_BACKEND_URL }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Release smoke must be dispatched from the protected main branch" >&2
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "expected_sha must be a full 40-character Git SHA" >&2
+            exit 1
+          fi
+          if [[ "$ENVIRONMENT_NAME" == "production" ]]; then
+            if [[ -z "$APPROVED_FRONTEND_URL" || -z "$APPROVED_BACKEND_URL" ]]; then
+              echo "production requires SMOKE_FRONTEND_URL and SMOKE_BACKEND_URL GitHub Environment variables" >&2
+              exit 1
+            fi
+            if [[ "${FRONTEND_URL%/}" != "${APPROVED_FRONTEND_URL%/}" || "${BACKEND_URL%/}" != "${APPROVED_BACKEND_URL%/}" ]]; then
+              echo "production URLs must match the protected GitHub Environment variables" >&2
+              exit 1
+            fi
+            if [[ ! "$FRONTEND_URL" =~ ^https:// || ! "$BACKEND_URL" =~ ^https:// ]]; then
+              echo "production smoke targets must use HTTPS" >&2
+              exit 1
+            fi
+          fi
+          node scripts/smoke.mjs \
+            --frontend-url "$FRONTEND_URL" \
+            --backend-url "$BACKEND_URL" \
+            --environment "$ENVIRONMENT_NAME" \
+            --expected-sha "$EXPECTED_SHA"

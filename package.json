@@ -16,7 +16,10 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "preview": "vite preview",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:test": "node --test scripts/smoke.test.mjs",
     "test": "vitest run",
+    "test:ci": "npm run test && npm run smoke:test",
     "test:watch": "vitest"
   },
   "dependencies": {

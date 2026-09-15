@@ -13,4 +13,16 @@ describe("GET /health", () => {
     });
     expect(res.body).toHaveProperty("timestamp");
   });
+
+  it("reports PostgreSQL readiness separately", async () => {
+    const res = await request(app).get("/health/ready");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: "ready",
+      service: "team-scrapbook-api",
+      checks: { database: "ready" },
+    });
+    expect(res.body).toHaveProperty("timestamp");
+  });
 });
