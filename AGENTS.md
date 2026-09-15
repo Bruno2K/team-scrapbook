@@ -38,6 +38,7 @@ If intended behavior conflicts with current implementation, surface the conflict
 ## Scope and traceability
 
 - Implement only the owning issue. Material implementation must reference an actual GitHub Issue.
+- Follow the risk-based [agent governance and review workflow](docs/agents/governance.md) for material changes, independent review, human gates, retries, and evidence.
 - Record unrelated findings as remaining risk or follow-up; do not fix them opportunistically.
 - Avoid speculative refactors and stop when the acceptance criteria and required evidence are satisfied.
 - Pull requests must use actual GitHub numbering, never roadmap-generated PR identifiers.
@@ -55,9 +56,11 @@ If intended behavior conflicts with current implementation, surface the conflict
 
 Use the existing commands in the [operations baseline](docs/operations/repository-baseline.md) and validate in proportion to the change. Run focused checks first; changes to shared contracts or runtime paths require the relevant frontend, backend, database, realtime, and/or integration checks on every affected side. Do not hide known baseline failures—distinguish them from regressions and report exact evidence in the PR.
 
-## Lightweight engineering flow
+## Risk-based engineering flow
 
-`Issue → Spec/Context Pack when needed → Implementation → Verification → Review → PR → Evidence`
+Trivial path: `Issue → Implement → Focused verification → PR`
+
+Material path: `Issue → Context/Spec when needed → Plan → Implement → Verify → Independent Review → PR → Evidence`
 
 - **Issue:** owns scope and acceptance criteria.
 - **Spec:** use [`docs/specs/TEMPLATE.md`](docs/specs/TEMPLATE.md) when behavior, invariants, failure modes, or acceptance criteria need more precision than the issue provides.
@@ -66,6 +69,8 @@ Use the existing commands in the [operations baseline](docs/operations/repositor
 - **PR:** connects implementation to the issue and records verification evidence plus remaining risk.
 
 Small, obvious changes can proceed from Issue directly to implementation. A Spec and Context Pack are independent: use either or both only when they reduce ambiguity or search cost.
+
+The reduced path is only for trivial, low-risk changes. A change involving shared contracts, data, authentication or authorization, realtime semantics, production infrastructure, security boundaries, or consequential AI behavior is material and must use the governance workflow.
 
 ## Instruction versioning
 
