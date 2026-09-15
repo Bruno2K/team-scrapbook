@@ -17,7 +17,6 @@ describe("Scraps", () => {
   });
 
   afterAll(async () => {
-    await prisma.scrapMessage.deleteMany({});
     await prisma.user.deleteMany({ where: { nickname: { in: [nick1, nick2] } } });
   });
 

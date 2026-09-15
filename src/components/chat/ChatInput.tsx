@@ -46,7 +46,7 @@ export function ChatInput({
 
     setSending(true);
     try {
-      let finalAttachments = [...attachments];
+      const finalAttachments = [...attachments];
       if (pendingFiles.length > 0) {
         for (const file of pendingFiles) {
           const att = await uploadFileToR2(file, "chat");

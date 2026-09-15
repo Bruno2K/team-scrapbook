@@ -4,11 +4,12 @@ Baseline candidate: `64cca16d56b8793587ac0757d5c912ef255d6851` (`main`, verified
 
 ## Prerequisites and package management
 
-- npm is authoritative because both workspaces have `package-lock.json`; use `npm ci` for a locked
-  install. A historical `bun.lockb` also exists at the root but no runtime/deployment command uses it.
-- Railway pins Node 22.23.2 in `backend/.node-version` and npm 10.9.8 in the backend manifest.
-- Local PostgreSQL is required for migrations and backend tests. SQLite is not supported by the
-  current Prisma datasource or migration.
+- Node 22.23.2 and npm 10.9.8 are the repository-wide runtime expectation. The root and Railway
+  backend `.node-version` files pin Node; both package manifests declare the same npm version.
+- npm is authoritative because both workspaces have `package-lock.json`; use `npm ci` for locked
+  installs. The unused historical `bun.lockb` was removed when the CI baseline was established.
+- Local PostgreSQL is required only for persistence integration tests and migration validation.
+  SQLite is not supported by the Prisma datasource, migrations, or test commands.
 
 ## Reproducible local sequence
 
@@ -16,17 +17,33 @@ Baseline candidate: `64cca16d56b8793587ac0757d5c912ef255d6851` (`main`, verified
 # frontend
 npm ci
 npm run lint
+npm run typecheck
 npm test
 npm run build
 
-# backend (from ./backend, with DATABASE_URL set to a disposable/local PostgreSQL database)
+# backend unit/type/build checks (from ./backend; no running database required)
 npm ci
 npm run db:generate
-npm run db:migrate:deploy
+npm run typecheck
+npm run test:unit
 npm run build
-npm test
-npx prisma migrate status
+
+# backend persistence checks with the checked-in disposable PostgreSQL 16 service
+npm run db:test:up
+export DATABASE_URL=postgresql://postgres:postgres@localhost:55432/team_scrapbook_test
+npm run db:test:prepare
+npm run test:integration
+npm run db:test:down
 ```
+
+`db:test:up` creates a repository-owned PostgreSQL 16 container with temporary storage and waits for
+readiness; `db:test:down` removes it. `db:test:prepare` rejects non-PostgreSQL URLs and database names
+without a distinct `test` segment, applies checked-in migrations, verifies migration status, and
+fails on drift between the migrated database and `schema.prisma`. Integration tests repeat the URL
+guard and run serially to keep cleanup deterministic. The GitHub Actions workflow uses its own
+disposable service with the same database name; neither path requires production or external-provider
+credentials. Backend `npm test` is the database-free unit suite, while `npm run test:all` includes
+integration tests and therefore requires the prepared test database.
 
 For interactive development, run `npm run dev:api` from the root and `npm run dev` in a second
 terminal. Vite defaults to port 8080 in this repository; Express defaults to port 3000.
