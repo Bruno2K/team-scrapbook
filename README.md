@@ -122,7 +122,7 @@
 - **bcryptjs** - Hash de senhas seguro
 
 ### Banco de Dados
-- **SQLite** (desenvolvimento) / **PostgreSQL** (produção)
+- **PostgreSQL** - Banco de dados em desenvolvimento e produção
 - **Prisma Migrations** - Versionamento de schema
 
 ### APIs e Integrações
@@ -141,7 +141,7 @@
 ### DevOps e Deploy
 - **Vercel** - Deploy do frontend
 - **Railway / Render** - Deploy do backend
-- **PostgreSQL** - Banco de dados em produção
+- **PostgreSQL** - Banco de dados relacional
 
 ---
 
@@ -198,7 +198,8 @@ team-scrapbook/
 
 ### Pré-requisitos
 
-- **Node.js** 18+ e npm
+- **Node.js** 22.23.2 e **npm** 10.9.8 (versões usadas pelo backend no Railway)
+- **PostgreSQL** disponível localmente
 - **Git**
 
 ### Passo a Passo
@@ -211,8 +212,8 @@ team-scrapbook/
 
 2. **Instale as dependências**
    ```bash
-   npm install
-   cd backend && npm install && cd ..
+   npm ci
+   cd backend && npm ci && cd ..
    ```
 
 3. **Configure as variáveis de ambiente**
@@ -224,7 +225,7 @@ team-scrapbook/
 
    Crie um arquivo `backend/.env`:
    ```env
-   DATABASE_URL="file:./dev.db"
+   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/team_scrapbook?schema=public"
    PORT=3000
    CORS_ORIGIN="http://localhost:8080"
    JWT_SECRET=seu-secret-super-seguro-aqui
@@ -247,16 +248,17 @@ team-scrapbook/
    R2_BUCKET=scrapbook
    R2_PUBLIC_BASE_URL=https://cdn.example.com
    
-   # Giphy (para busca de GIFs)
-   VITE_GIPHY_API_KEY=sua-chave-giphy
    ```
+
+   `VITE_GIPHY_API_KEY` é uma variável opcional do `.env` da raiz, usada pela busca de GIFs.
 
 4. **Configure o banco de dados**
    ```bash
+   # Crie primeiro o banco PostgreSQL referenciado por DATABASE_URL.
    cd backend
-   npx prisma generate
-   npx prisma migrate dev
-   npx prisma db seed  # Opcional: dados iniciais
+   npm run db:generate
+   npm run db:migrate
+   npm run db:seed  # Opcional: dados iniciais
    cd ..
    ```
 
@@ -283,7 +285,7 @@ team-scrapbook/
 
 ### Swagger/OpenAPI
 
-A API está totalmente documentada usando OpenAPI 3.0. Quando o backend estiver rodando, acesse:
+A API expõe documentação parcial em OpenAPI 3.0. Quando o backend estiver rodando, acesse:
 
 - **Swagger UI**: http://localhost:3000/api-docs
 - **Especificação JSON**: http://localhost:3000/api-docs.json
@@ -336,25 +338,13 @@ A API está totalmente documentada usando OpenAPI 3.0. Quando o backend estiver 
 2. Configure a variável de ambiente `VITE_API_URL` apontando para seu backend
 3. Deploy automático a cada push
 
-Veja o guia completo em [`DEPLOY-PT.md`](./DEPLOY-PT.md)
+O arquivo [`vercel.json`](./vercel.json) registra o build e o fallback da SPA.
 
-### Backend (Railway/Render)
+### Backend (Railway)
 
-O backend requer uma plataforma que suporte WebSockets persistentes. Recomendamos:
-
-- **Railway** (recomendado) - Suporte nativo a WebSockets
-- **Render** - Alternativa com suporte a WebSockets
-
-**Importante**: Para produção, atualize o `backend/prisma/schema.prisma` para usar PostgreSQL:
-
-```prisma
-datasource db {
-  provider = "postgresql"  // Mude de "sqlite"
-  url      = env("DATABASE_URL")
-}
-```
-
-Veja instruções detalhadas em [`DEPLOY.md`](./DEPLOY.md) (inglês) ou [`DEPLOY-PT.md`](./DEPLOY-PT.md) (português).
+O backend atual usa Railway com PostgreSQL e WebSockets persistentes. O schema Prisma já usa
+PostgreSQL; não há modo SQLite suportado. Build, migração, start e versão de Node estão em
+[`backend/RAILWAY.md`](./backend/RAILWAY.md).
 
 ---
 
@@ -363,6 +353,9 @@ Veja instruções detalhadas em [`DEPLOY.md`](./DEPLOY.md) (inglês) ou [`DEPLOY
 ```bash
 # Executar testes
 npm test
+
+# Backend (requer DATABASE_URL apontando para PostgreSQL)
+cd backend && npm test
 
 # Modo watch
 npm run test:watch
@@ -382,6 +375,7 @@ npm run test:watch
 - `npm run dev:api` - Inicia backend em modo desenvolvimento
 - `cd backend && npm run build` - Compila TypeScript
 - `cd backend && npm start` - Inicia backend em produção
+- `cd backend && npm test` - Executa testes (requer PostgreSQL)
 
 ### Banco de Dados
 - `cd backend && npx prisma studio` - Abre Prisma Studio (GUI do banco)
