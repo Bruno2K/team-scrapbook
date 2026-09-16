@@ -12,6 +12,7 @@ import communityRoutes from "./routes/communityRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import aiActionsRoutes from "./routes/aiActionsRoutes.js";
+import { notificationRoutes } from "./modules/notifications/index.js";
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.get("/api-docs.json", (_req, res) => {
 
 app.use("/health", healthRoutes);
 app.use("/auth", authRoutes);
+app.use("/users", notificationRoutes);
 app.use("/users", userRoutes);
 app.use("/feed", feedRoutes);
 app.use("/comments", commentRoutes);

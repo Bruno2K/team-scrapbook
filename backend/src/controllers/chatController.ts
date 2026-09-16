@@ -10,7 +10,7 @@ import {
 } from "../services/chatService.js";
 import { conversationToJSON, chatMessageToJSON } from "../views/chatView.js";
 import { prisma } from "../db/client.js";
-import { createNotification } from "../services/notificationService.js";
+import { createNotification } from "../modules/notifications/index.js";
 
 const createConversationSchema = z.object({
   otherUserId: z.string().min(1, "otherUserId é obrigatório"),

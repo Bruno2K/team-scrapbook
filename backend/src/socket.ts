@@ -2,7 +2,7 @@ import { Server as HttpServer } from "http";
 import { Server, type Socket } from "socket.io";
 import { verifyToken } from "./services/authService.js";
 import { createMessage, isParticipant, triggerAiReplyIfNeeded } from "./services/chatService.js";
-import { createNotification } from "./services/notificationService.js";
+import { createNotification } from "./modules/notifications/index.js";
 import { chatMessageToJSON } from "./views/chatView.js";
 import { prisma } from "./db/client.js";
 

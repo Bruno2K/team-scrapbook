@@ -1,5 +1,5 @@
 import { prisma } from "../db/client.js";
-import { createNotification } from "./notificationService.js";
+import { createNotification } from "../modules/notifications/index.js";
 
 export function friendPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];

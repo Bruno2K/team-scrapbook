@@ -29,11 +29,6 @@ import {
   syncSteam,
 } from "../controllers/steamController.js";
 import { getMyFeed, getUserFeed } from "../controllers/feedController.js";
-import {
-  getMyNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-} from "../controllers/notificationsController.js";
 
 const router = Router();
 
@@ -42,9 +37,6 @@ router.patch("/me", authMiddleware, updateMe);
 router.get("/me/feed", authMiddleware, getMyFeed);
 router.patch("/me/pinned-achievements", authMiddleware, updatePinnedAchievements);
 router.patch("/me/pinned-posts", authMiddleware, updatePinnedPosts);
-router.get("/me/notifications", authMiddleware, getMyNotifications);
-router.patch("/me/notifications/read-all", authMiddleware, markAllNotificationsRead);
-router.patch("/me/notifications/:id/read", authMiddleware, markNotificationRead);
 router.get("/friends", authMiddleware, getFriends);
 router.get("/me/friend-requests", authMiddleware, getMyFriendRequests);
 router.post("/me/friend-requests/:requestId/accept", authMiddleware, acceptFriendRequest);
