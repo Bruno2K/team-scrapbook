@@ -1,27 +1,9 @@
 import { prisma } from "../db/client.js";
 import { createNotification } from "../modules/notifications/index.js";
+import { isInteractionBlocked } from "../modules/relationships/index.js";
 
 export function friendPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
-}
-
-/** True if both users are friends and neither has blocked the other. */
-export async function canChatWith(userId: string, otherId: string): Promise<boolean> {
-  if (userId === otherId) return false;
-  const [u1, u2] = friendPair(userId, otherId);
-  const friendship = await prisma.friendship.findUnique({
-    where: { user1Id_user2Id: { user1Id: u1, user2Id: u2 } },
-  });
-  if (!friendship) return false;
-  const blocked = await prisma.blockedUser.findFirst({
-    where: {
-      OR: [
-        { blockerId: userId, blockedId: otherId },
-        { blockerId: otherId, blockedId: userId },
-      ],
-    },
-  });
-  return !blocked;
 }
 
 /** List users that are friends with the given user (mutual). Excludes blocked. */
@@ -212,6 +194,7 @@ export async function acceptFriendRequest(requestId: string, userId: string): Pr
     where: { id: requestId },
   });
   if (!request || request.toUserId !== userId || request.status !== "PENDING") return false;
+  if (await isInteractionBlocked(request.fromUserId, request.toUserId)) return false;
   const [u1, u2] = friendPair(request.fromUserId, request.toUserId);
   await prisma.$transaction([
     prisma.friendship.create({
@@ -253,6 +236,14 @@ export async function blockUser(blockerId: string, blockedId: string): Promise<b
         OR: [
           { user1Id: blockerId, user2Id: blockedId },
           { user1Id: blockedId, user2Id: blockerId },
+        ],
+      },
+    }),
+    prisma.friendshipRequest.deleteMany({
+      where: {
+        OR: [
+          { fromUserId: blockerId, toUserId: blockedId },
+          { fromUserId: blockedId, toUserId: blockerId },
         ],
       },
     }),

@@ -95,12 +95,12 @@ export async function runRandomAiActions(): Promise<{ created: number; errors: s
           if (!from || !to || from.id === to.id) break;
           const content =
             (await generateActionContent(from.mainClass, from.nickname, "scrap")) || "Recado em personagem.";
-          await createScrap({
+          const scrap = await createScrap({
             fromUserId: from.id,
             toUserId: to.id,
             content,
           });
-          created++;
+          if (scrap) created++;
           break;
         }
         case "feed_post": {

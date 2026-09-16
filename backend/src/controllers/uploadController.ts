@@ -8,13 +8,13 @@ import {
 } from "../services/uploadService.js";
 
 const presignSchema = z.object({
-  filename: z.string().min(1, "filename é obrigatório"),
-  contentType: z.string().min(1, "contentType é obrigatório"),
+  filename: z.string().min(1, "filename é obrigatório").max(255),
+  contentType: z.string().min(1, "contentType é obrigatório").max(255),
   kind: z.enum(["feed", "scrap", "avatar", "chat"]),
-});
+}).strict();
 
 export async function presign(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -43,17 +43,16 @@ export async function presign(req: Request, res: Response) {
   }
 
   try {
-    const result = await getPresignedUploadUrl(req.user.id, filename, contentType, kind);
+    const result = await getPresignedUploadUrl(req.actor.id, filename, contentType, kind);
     res.status(200).json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao gerar URL de upload";
-    res.status(400).json({ message });
+  } catch {
+    res.status(400).json({ message: "Não foi possível preparar o upload" });
   }
 }
 
 /** Upload file via backend (proxy to R2) to avoid CORS. Body = raw file, X-Upload-Filename, ?kind=feed|scrap */
 export async function uploadFile(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -90,15 +89,14 @@ export async function uploadFile(req: Request, res: Response) {
 
   try {
     const { uploadUrl, publicUrl, key, type } = await getPresignedUploadUrl(
-      req.user.id,
+      req.actor.id,
       filename,
       contentType,
       kind
     );
     await uploadBufferToPresignedUrl(uploadUrl, buffer, contentType);
     res.status(200).json({ publicUrl, key, type, filename });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro no upload";
-    res.status(400).json({ message });
+  } catch {
+    res.status(400).json({ message: "Não foi possível concluir o upload" });
   }
 }

@@ -1,5 +1,10 @@
 import type { ScrapReaction } from "@prisma/client";
 import { prisma } from "../db/client.js";
+import {
+  canInteractWithComment,
+  canInteractWithFeedItem,
+  canInteractWithScrap,
+} from "../modules/content/index.js";
 
 const REACTIONS: ScrapReaction[] = ["headshot", "heal", "burn", "backstab"];
 
@@ -68,6 +73,7 @@ export async function setPostReaction(
   userId: string,
   reaction: ScrapReaction
 ): Promise<boolean> {
+  if (!(await canInteractWithFeedItem(userId, feedItemId))) return false;
   const feedItem = await prisma.feedItem.findUnique({
     where: { id: feedItemId },
     select: { allowReactions: true },
@@ -84,6 +90,7 @@ export async function setPostReaction(
 }
 
 export async function removePostReaction(feedItemId: string, userId: string): Promise<boolean> {
+  if (!(await canInteractWithFeedItem(userId, feedItemId))) return false;
   const deleted = await prisma.feedItemReaction.deleteMany({
     where: { feedItemId, userId },
   });
@@ -119,6 +126,7 @@ export async function setCommentReaction(
   reaction: ScrapReaction
 ): Promise<boolean> {
   if (!REACTIONS.includes(reaction)) return false;
+  if (!(await canInteractWithComment(userId, commentId))) return false;
   await prisma.commentReaction.upsert({
     where: { commentId_userId: { commentId, userId } },
     create: { commentId, userId, reaction },
@@ -128,6 +136,7 @@ export async function setCommentReaction(
 }
 
 export async function removeCommentReaction(commentId: string, userId: string): Promise<boolean> {
+  if (!(await canInteractWithComment(userId, commentId))) return false;
   const deleted = await prisma.commentReaction.deleteMany({
     where: { commentId, userId },
   });
@@ -163,6 +172,7 @@ export async function setScrapReaction(
   userId: string,
   reaction: ScrapReaction
 ): Promise<boolean> {
+  if (!(await canInteractWithScrap(userId, scrapId))) return false;
   // Verificar se o scrap existe e se o usuário tem acesso
   const scrap = await prisma.scrapMessage.findUnique({
     where: { id: scrapId },
@@ -182,6 +192,7 @@ export async function setScrapReaction(
 }
 
 export async function removeScrapReaction(scrapId: string, userId: string): Promise<boolean> {
+  if (!(await canInteractWithScrap(userId, scrapId))) return false;
   const deleted = await prisma.scrapMessageReaction.deleteMany({
     where: { scrapId, userId },
   });

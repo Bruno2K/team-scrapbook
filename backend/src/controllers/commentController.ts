@@ -4,9 +4,10 @@ import {
   setCommentReaction as setCommentReactionService,
   removeCommentReaction as removeCommentReactionService,
 } from "../services/reactionService.js";
+import { canInteractWithComment } from "../modules/content/index.js";
 
 export async function deleteComment(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -16,7 +17,7 @@ export async function deleteComment(req: Request, res: Response) {
     return;
   }
   try {
-    const ok = await deleteCommentService(commentId, req.user.id);
+    const ok = await deleteCommentService(commentId, req.actor.id);
     if (!ok) {
       res.status(403).json({ message: "Não autorizado a excluir este comentário" });
       return;
@@ -28,7 +29,7 @@ export async function deleteComment(req: Request, res: Response) {
 }
 
 export async function setCommentReaction(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -43,7 +44,15 @@ export async function setCommentReaction(req: Request, res: Response) {
     return;
   }
   try {
-    await setCommentReactionService(commentId, req.user.id, reaction);
+    if (!(await canInteractWithComment(req.actor.id, commentId))) {
+      res.status(403).json({ message: "Interação não permitida" });
+      return;
+    }
+    const ok = await setCommentReactionService(commentId, req.actor.id, reaction);
+    if (!ok) {
+      res.status(403).json({ message: "Interação não permitida" });
+      return;
+    }
     res.status(200).json({ reaction });
   } catch (err) {
     res.status(500).json({ message: "Erro ao reagir" });
@@ -51,7 +60,7 @@ export async function setCommentReaction(req: Request, res: Response) {
 }
 
 export async function removeCommentReaction(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -61,7 +70,11 @@ export async function removeCommentReaction(req: Request, res: Response) {
     return;
   }
   try {
-    await removeCommentReactionService(commentId, req.user.id);
+    if (!(await canInteractWithComment(req.actor.id, commentId))) {
+      res.status(403).json({ message: "Interação não permitida" });
+      return;
+    }
+    await removeCommentReactionService(commentId, req.actor.id);
     res.status(200).json({ removed: true });
   } catch (err) {
     res.status(500).json({ message: "Erro ao remover reação" });

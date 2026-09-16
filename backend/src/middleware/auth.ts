@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
-import { prisma } from "../db/client.js";
-import { verifyToken } from "../services/authService.js";
+import { resolveAccessToken } from "../modules/identity/index.js";
+
+function attachActor(req: Request, actor: NonNullable<Request["actor"]>): void {
+  req.actor = actor;
+}
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
@@ -11,20 +14,19 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
 
   const token = authHeader.slice(7);
   try {
-    const { userId } = verifyToken(token);
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      res.status(401).json({ message: "Usuário não encontrado" });
+    const actor = await resolveAccessToken(token);
+    if (!actor || actor.isAiManaged) {
+      res.status(401).json({ message: "Token inválido ou expirado" });
       return;
     }
-    req.user = user;
+    attachActor(req, actor);
     next();
   } catch {
     res.status(401).json({ message: "Token inválido ou expirado" });
   }
 }
 
-/** Sets req.user when a valid token is present; does not 401 when missing. */
+/** Sets req.actor when a valid current actor is present; does not 401 when missing. */
 export async function optionalAuthMiddleware(req: Request, _res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
@@ -33,32 +35,8 @@ export async function optionalAuthMiddleware(req: Request, _res: Response, next:
   }
   const token = authHeader.slice(7);
   try {
-    const { userId } = verifyToken(token);
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user) req.user = user;
-  } catch {
-    // ignore invalid token
-  }
-  next();
-}
-
-/** Like optionalAuth but also accepts token in query (for Steam redirect flow). */
-export async function optionalAuthForSteam(req: Request, _res: Response, next: NextFunction) {
-  let token: string | undefined;
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith("Bearer ")) {
-    token = authHeader.slice(7);
-  } else {
-    token = typeof req.query?.token === "string" ? req.query.token : undefined;
-  }
-  if (!token) {
-    next();
-    return;
-  }
-  try {
-    const { userId } = verifyToken(token);
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user) req.user = user;
+    const actor = await resolveAccessToken(token);
+    if (actor && !actor.isAiManaged) attachActor(req, actor);
   } catch {
     // ignore invalid token
   }

@@ -1,9 +1,9 @@
-import type { User as PrismaUser } from "@prisma/client";
+import type { AuthenticatedActor } from "../modules/identity/index.js";
 
 declare global {
   namespace Express {
     interface Request {
-      user?: PrismaUser;
+      actor?: AuthenticatedActor;
     }
   }
 }

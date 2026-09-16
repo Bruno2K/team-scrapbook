@@ -173,10 +173,10 @@ export default function Settings() {
     }
   }, [queryClient, meKey, refetch]);
 
-  const handleLinkWithSteam = () => {
+  const handleLinkWithSteam = async () => {
     setLinkError(null);
     try {
-      const url = getSteamAuthRedirectUrl();
+      const url = await getSteamAuthRedirectUrl();
       window.location.href = url;
     } catch (e) {
       setLinkError(e instanceof Error ? e.message : "Erro ao iniciar vinculação");

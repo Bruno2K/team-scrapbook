@@ -2,16 +2,13 @@ import type { User } from "@/lib/types";
 import { apiRequest, isApiConfigured } from "./client";
 import { getStoredToken } from "./auth";
 
-const baseURL = import.meta.env.VITE_API_URL ?? "";
-
-/** Get the URL to redirect the user to for Steam OpenID (link account). Browser redirect cannot send Bearer; token is passed in query. */
-export function getSteamAuthRedirectUrl(): string {
-  const token = getStoredToken();
-  if (!isApiConfigured() || !token) {
+/** Request a short-lived, purpose-scoped Steam OpenID redirect URL. */
+export async function getSteamAuthRedirectUrl(): Promise<string> {
+  if (!isApiConfigured() || !getStoredToken()) {
     throw new Error("Faça login para vincular sua conta Steam.");
   }
-  const base = baseURL.replace(/\/$/, "");
-  return `${base}/users/me/steam/auth?token=${encodeURIComponent(token)}`;
+  const result = await apiRequest<{ url: string }>("/users/me/steam/auth-url", { method: "POST" });
+  return result.url;
 }
 
 /** Link Steam by SteamID64 or vanity URL (Opção A). Returns updated user. */

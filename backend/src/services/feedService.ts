@@ -15,9 +15,22 @@ export type FeedEntry =
   | { kind: "feed"; item: FeedItemWithRelations }
   | { kind: "scrap"; item: ScrapReceived | ScrapSent; direction: "sent" | "received" };
 
+function visibleFeedWhere(viewerId?: string | null): Prisma.FeedItemWhereInput {
+  return {
+    OR: [
+      { communityId: null },
+      { community: { is: { isPrivate: false } } },
+      ...(viewerId
+        ? [{ community: { is: { members: { some: { userId: viewerId } } } } }]
+        : []),
+    ],
+  };
+}
+
 export async function listFeed(userId?: string, limit = 50): Promise<FeedEntry[]> {
   const [feedItems, receivedScraps, sentScraps] = await Promise.all([
     prisma.feedItem.findMany({
+      where: visibleFeedWhere(userId),
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
@@ -45,10 +58,11 @@ export async function listFeed(userId?: string, limit = 50): Promise<FeedEntry[]
 /** Only feed items (posts) by this user, no scraps. */
 export async function listFeedByUserId(
   userId: string,
+  viewerId?: string | null,
   limit = 50
 ): Promise<FeedItemWithRelations[]> {
   return prisma.feedItem.findMany({
-    where: { userId },
+    where: { AND: [{ userId }, visibleFeedWhere(viewerId)] },
     orderBy: { createdAt: "desc" },
     take: limit,
     include: {
@@ -61,11 +75,12 @@ export async function listFeedByUserId(
 /** Profile feed: my posts + scraps I sent or received, merged and sorted by date. */
 export async function listMyProfileFeed(
   userId: string,
+  viewerId: string | null = userId,
   limit = 50
 ): Promise<FeedEntry[]> {
   const [feedItems, receivedScraps, sentScraps] = await Promise.all([
     prisma.feedItem.findMany({
-      where: { userId },
+      where: { AND: [{ userId }, visibleFeedWhere(viewerId)] },
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
@@ -73,8 +88,8 @@ export async function listMyProfileFeed(
         community: { select: { id: true, name: true } },
       },
     }),
-    listScrapsReceived(userId, limit),
-    listScrapsSent(userId, limit),
+    viewerId === userId ? listScrapsReceived(userId, limit) : Promise.resolve([]),
+    viewerId === userId ? listScrapsSent(userId, limit) : Promise.resolve([]),
   ]);
 
   const entries: FeedEntry[] = [
@@ -157,15 +172,21 @@ export interface UserMediaItem {
 }
 
 /** All media attachments from a user's feed items and scraps (sent or received), sorted by date desc. */
-export async function listUserMedia(userId: string, limit = 100): Promise<UserMediaItem[]> {
+export async function listUserMedia(
+  userId: string,
+  viewerId: string | null,
+  limit = 100,
+): Promise<UserMediaItem[]> {
   const [feedItems, scraps] = await Promise.all([
     prisma.feedItem.findMany({
-      where: { userId, attachments: { not: Prisma.JsonNull } },
+      where: {
+        AND: [{ userId, attachments: { not: Prisma.JsonNull } }, visibleFeedWhere(viewerId)],
+      },
       orderBy: { createdAt: "desc" },
       take: limit * 2,
       select: { id: true, attachments: true, createdAt: true },
     }),
-    prisma.scrapMessage.findMany({
+    viewerId === userId ? prisma.scrapMessage.findMany({
       where: {
         OR: [{ fromUserId: userId }, { toUserId: userId }],
         attachments: { not: Prisma.JsonNull },
@@ -173,7 +194,7 @@ export async function listUserMedia(userId: string, limit = 100): Promise<UserMe
       orderBy: { createdAt: "desc" },
       take: limit * 2,
       select: { id: true, attachments: true, createdAt: true },
-    }),
+    }) : Promise.resolve([]),
   ]);
 
   const items: UserMediaItem[] = [];

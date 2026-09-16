@@ -1,10 +1,16 @@
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { prisma } from "../db/client.js";
 import type { Team, TF2Class } from "@prisma/client";
+import { issueAccessToken } from "../modules/identity/index.js";
 
 const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-in-production";
+
+export class AuthServiceError extends Error {
+  constructor(public readonly code: "NICKNAME_TAKEN" | "INVALID_CREDENTIALS") {
+    super(code);
+    this.name = "AuthServiceError";
+  }
+}
 
 export interface RegisterInput {
   name: string;
@@ -27,21 +33,29 @@ export interface AuthResult {
 export async function register(input: RegisterInput): Promise<AuthResult> {
   const existing = await prisma.user.findUnique({ where: { nickname: input.nickname } });
   if (existing) {
-    throw new Error("Nickname já em uso");
+    throw new AuthServiceError("NICKNAME_TAKEN");
   }
 
   const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
-  const user = await prisma.user.create({
-    data: {
-      name: input.name,
-      nickname: input.nickname,
-      passwordHash,
-      team: input.team ?? "RED",
-      mainClass: input.mainClass ?? "Scout",
-    },
-  });
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: {
+        name: input.name,
+        nickname: input.nickname,
+        passwordHash,
+        team: input.team ?? "RED",
+        mainClass: input.mainClass ?? "Scout",
+      },
+    });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      throw new AuthServiceError("NICKNAME_TAKEN");
+    }
+    throw error;
+  }
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+  const token = issueAccessToken(user.id);
   return {
     user: {
       id: user.id,
@@ -56,16 +70,15 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
     token,
   };
 }
-
 export async function login(input: LoginInput): Promise<AuthResult> {
   const user = await prisma.user.findUnique({ where: { nickname: input.nickname } });
-  if (!user) {
-    throw new Error("Nickname ou senha inválidos");
+  if (!user || user.isAiManaged) {
+    throw new AuthServiceError("INVALID_CREDENTIALS");
   }
 
   const valid = await bcrypt.compare(input.password, user.passwordHash);
   if (!valid) {
-    throw new Error("Nickname ou senha inválidos");
+    throw new AuthServiceError("INVALID_CREDENTIALS");
   }
 
   await prisma.user.update({
@@ -73,7 +86,7 @@ export async function login(input: LoginInput): Promise<AuthResult> {
     data: { online: true },
   });
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+  const token = issueAccessToken(user.id);
   return {
     user: {
       id: user.id,
@@ -87,9 +100,4 @@ export async function login(input: LoginInput): Promise<AuthResult> {
     },
     token,
   };
-}
-
-export function verifyToken(token: string): { userId: string } {
-  const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
-  return payload;
 }

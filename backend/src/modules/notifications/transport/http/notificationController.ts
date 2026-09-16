@@ -5,7 +5,7 @@ import { notificationToJSON } from "../../application/notificationApplication.js
 export function createNotificationController(application: NotificationApplication) {
   return {
     async getMyNotifications(req: Request, res: Response) {
-      if (!req.user) {
+      if (!req.actor) {
         res.status(401).json({ message: "Não autorizado" });
         return;
       }
@@ -14,7 +14,7 @@ export function createNotificationController(application: NotificationApplicatio
       const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
       try {
         const { items, nextCursor } = await application.listForUser({
-          userId: req.user.id,
+          userId: req.actor.id,
           unreadOnly,
           limit,
           cursor,
@@ -29,7 +29,7 @@ export function createNotificationController(application: NotificationApplicatio
     },
 
     async markNotificationRead(req: Request, res: Response) {
-      if (!req.user) {
+      if (!req.actor) {
         res.status(401).json({ message: "Não autorizado" });
         return;
       }
@@ -39,7 +39,7 @@ export function createNotificationController(application: NotificationApplicatio
         return;
       }
       try {
-        const result = await application.markRead(req.user.id, notificationId);
+        const result = await application.markRead(req.actor.id, notificationId);
         if (result.count === 0) {
           res.status(404).json({ message: "Notificação não encontrada" });
           return;
@@ -51,12 +51,12 @@ export function createNotificationController(application: NotificationApplicatio
     },
 
     async markAllNotificationsRead(req: Request, res: Response) {
-      if (!req.user) {
+      if (!req.actor) {
         res.status(401).json({ message: "Não autorizado" });
         return;
       }
       try {
-        await application.markAllRead(req.user.id);
+        await application.markAllRead(req.actor.id);
         res.status(200).json({ message: "Todas marcadas como lidas" });
       } catch {
         res.status(500).json({ message: "Erro ao atualizar notificações" });

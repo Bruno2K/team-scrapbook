@@ -3,6 +3,7 @@ import type { TF2Class, Team } from "@prisma/client";
 import type { User } from "@prisma/client";
 import { listFriends } from "./userService.js";
 import { createNotification, deleteByJoinRequestId } from "../modules/notifications/index.js";
+import { canInteract } from "../modules/relationships/index.js";
 
 export interface ListCommunitiesOptions {
   userId?: string;
@@ -153,6 +154,14 @@ export async function canModerateCommunity(userId: string, communityId: string):
   return member?.role === "ADMIN" || member?.role === "MODERATOR";
 }
 
+export async function canDeleteCommunity(userId: string, communityId: string): Promise<boolean> {
+  const community = await prisma.community.findUnique({
+    where: { id: communityId },
+    select: { ownerId: true },
+  });
+  return community?.ownerId === userId;
+}
+
 export interface CreateCommunityInput {
   userId: string;
   name: string;
@@ -183,7 +192,7 @@ export async function createCommunity(input: CreateCommunityInput) {
         role: "ADMIN",
       },
     });
-    return prisma.community.findUnique({
+    return tx.community.findUnique({
       where: { id: community.id },
       include: { owner: true },
     });
@@ -392,6 +401,7 @@ export async function updateMemberRole(
   if (!canManage) return false;
   const target = await getMember(targetUserId, communityId);
   if (!target) return false;
+  if (newRole === "ADMIN" && community.ownerId !== actorUserId) return false;
   if (target.role === "ADMIN" && community.ownerId !== actorUserId) return false; // only owner can change another admin
   await prisma.communityMember.update({
     where: { userId_communityId: { userId: targetUserId, communityId } },
@@ -449,6 +459,7 @@ export async function createInvite(communityId: string, inviterId: string, invit
   if (!community?.isPrivate) return null;
   const canManage = await canManageCommunity(inviterId, communityId);
   if (!canManage) return null;
+  if (!(await canInteract(inviterId, inviteeId))) return null;
   const existingMember = await getMember(inviteeId, communityId);
   if (existingMember) return null;
   const existing = await prisma.communityInvite.findUnique({
@@ -525,7 +536,7 @@ export async function declineInvite(inviteId: string, userId: string) {
 
 export async function listCommunityInvites(communityId: string, actorUserId: string) {
   const canManage = await canManageCommunity(actorUserId, communityId);
-  if (!canManage) return [];
+  if (!canManage) return null;
   return prisma.communityInvite.findMany({
     where: { communityId, status: "PENDING" },
     include: { invitee: true, inviter: true },
@@ -576,7 +587,7 @@ export async function createJoinRequest(communityId: string, userId: string) {
 
 export async function listJoinRequests(communityId: string, actorUserId: string) {
   const canManage = await canManageCommunity(actorUserId, communityId);
-  if (!canManage) return [];
+  if (!canManage) return null;
   return prisma.communityJoinRequest.findMany({
     where: { communityId, status: "PENDING" },
     include: { user: true },

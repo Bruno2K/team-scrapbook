@@ -1,23 +1,10 @@
 import type { Request, Response } from "express";
-import { runRandomAiActions } from "../services/aiActionsService.js";
-
 export async function generateAiActions(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
-  try {
-    const { created, errors } = await runRandomAiActions();
-    if (created === 0 && errors.length > 0 && errors[0]?.includes("pelo menos 2 usuários")) {
-      res.status(400).json({ message: errors[0] });
-      return;
-    }
-    res.status(201).json({
-      created,
-      message: created > 0 ? `${created} ações geradas.` : "Nenhuma ação pôde ser gerada.",
-      ...(errors.length > 0 && { errors }),
-    });
-  } catch {
-    res.status(500).json({ message: "Falha ao gerar ações" });
-  }
+  // Automated actors are internal principals. A human session cannot request
+  // arbitrary mutations under AI identities.
+  res.status(403).json({ message: "Ações automatizadas não estão disponíveis para sessões de usuário." });
 }

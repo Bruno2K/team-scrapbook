@@ -1,4 +1,5 @@
 import { prisma } from "../db/client.js";
+import { canInteractWithFeedItem, canInteractWithScrap } from "../modules/content/index.js";
 
 /** Batch: total comment count per feed item (including replies). */
 export async function getCommentCountByFeedItemIds(
@@ -99,6 +100,7 @@ export async function createComment(
 ) {
   // Verificar se é FeedItem ou Scrap
   if (feedItemId) {
+    if (!(await canInteractWithFeedItem(userId, feedItemId))) return null;
     const feedItem = await prisma.feedItem.findUnique({
       where: { id: feedItemId },
       select: { allowComments: true },
@@ -123,6 +125,7 @@ export async function createComment(
       include: { user: true, reactions: true },
     });
   } else if (scrapId) {
+    if (!(await canInteractWithScrap(userId, scrapId))) return null;
     // Verificar se o scrap existe e se o usuário tem acesso
     const scrap = await prisma.scrapMessage.findUnique({
       where: { id: scrapId },
