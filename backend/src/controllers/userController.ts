@@ -16,6 +16,28 @@ import {
 } from "../services/userService.js";
 import { listCommunitiesWhereMember } from "../services/communityService.js";
 import { listUserMedia } from "../services/feedService.js";
+import type {
+  AcceptFriendRequestResult,
+  BlockUserResult,
+} from "../modules/relationships/index.js";
+
+export function acceptanceHttpResult(result: AcceptFriendRequestResult) {
+  if (result === "accepted" || result === "already_applied") {
+    return { status: 200, message: "Amigo adicionado à squad" };
+  }
+  if (result === "already_processed" || result === "conflict") {
+    return { status: 409, message: "Solicitação já processada ou em conflito" };
+  }
+  return { status: 403, message: "Solicitação inválida ou interação bloqueada" };
+}
+
+export function blockHttpResult(result: BlockUserResult) {
+  if (result === "blocked") return { status: 200, message: "Usuário bloqueado" };
+  if (result === "conflict") {
+    return { status: 409, message: "Conflito ao atualizar relacionamento; tente novamente" };
+  }
+  return { status: 400, message: "Não foi possível bloquear" };
+}
 
 export async function getMe(req: Request, res: Response) {
   if (!req.actor) {
@@ -357,6 +379,10 @@ export async function addFriend(req: Request, res: Response) {
       res.status(201).json({ message: "Solicitação enviada" });
       return;
     }
+    if (result === "conflict") {
+      res.status(409).json({ message: "Conflito ao atualizar relacionamento; tente novamente" });
+      return;
+    }
     res.status(400).json({ message: "Não foi possível adicionar" });
   } catch {
     res.status(500).json({ message: "Erro ao adicionar amigo" });
@@ -394,12 +420,9 @@ export async function acceptFriendRequest(req: Request, res: Response) {
     return;
   }
   try {
-    const ok = await acceptFriendRequestService(requestId, req.actor.id);
-    if (!ok) {
-      res.status(403).json({ message: "Solicitação inválida ou já processada" });
-      return;
-    }
-    res.status(200).json({ message: "Amigo adicionado à squad" });
+    const result = await acceptFriendRequestService(requestId, req.actor.id);
+    const mapped = acceptanceHttpResult(result);
+    res.status(mapped.status).json({ message: mapped.message });
   } catch {
     res.status(500).json({ message: "Erro ao aceitar solicitação" });
   }
@@ -456,12 +479,9 @@ export async function blockUser(req: Request, res: Response) {
     return;
   }
   try {
-    const ok = await blockUserService(req.actor.id, userId);
-    if (!ok) {
-      res.status(400).json({ message: "Não foi possível bloquear" });
-      return;
-    }
-    res.status(200).json({ message: "Usuário bloqueado" });
+    const result = await blockUserService(req.actor.id, userId);
+    const mapped = blockHttpResult(result);
+    res.status(mapped.status).json({ message: mapped.message });
   } catch {
     res.status(500).json({ message: "Erro ao bloquear" });
   }

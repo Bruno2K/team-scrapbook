@@ -44,19 +44,21 @@ export function useSendChatMessage() {
   const queryClient = useQueryClient();
   const { sendMessageViaSocket, socketConnected } = useChat();
   return async (body: SendMessageBody) => {
-    if (!body.conversationId) return;
+    if (!body.conversationId) return false;
     if (socketConnected) {
       sendMessageViaSocket(body.conversationId, {
         content: body.content ?? null,
         type: body.type ?? "TEXT",
         attachments: body.attachments,
       });
+      return true;
     } else {
       const msg = await sendMessageApi(body);
       if (msg) {
         queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_QUERY_KEY });
         queryClient.invalidateQueries({ queryKey: ["chat", "messages", body.conversationId] });
       }
+      return Boolean(msg);
     }
   };
 }

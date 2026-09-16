@@ -16,6 +16,7 @@ export interface CreateNotificationInput {
   userId: string;
   type: NotificationType;
   payload: NotificationPayload;
+  dedupeKey?: string;
 }
 
 export interface NotificationJSON {

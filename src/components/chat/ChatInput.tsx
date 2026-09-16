@@ -36,6 +36,7 @@ export function ChatInput({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const retryAttemptRef = useRef<{ signature: string; idempotencyKey: string } | null>(null);
   const sendMessage = useSendChatMessage();
 
   const handleSend = useCallback(async () => {
@@ -64,12 +65,24 @@ export function ChatInput({
                 ? "AUDIO"
                 : "DOCUMENT"
           : "TEXT";
-      await sendMessage({
+      const messageBody = {
         conversationId,
         content: text.trim() || null,
         type: type as "TEXT" | "AUDIO" | "VIDEO" | "DOCUMENT",
         attachments: finalAttachments.length > 0 ? finalAttachments : undefined,
-      });
+      };
+      const signature = JSON.stringify(messageBody);
+      const attempt = retryAttemptRef.current?.signature === signature
+        ? retryAttemptRef.current
+        : { signature, idempotencyKey: crypto.randomUUID() };
+      retryAttemptRef.current = attempt;
+      const sent = await sendMessage({ ...messageBody, idempotencyKey: attempt.idempotencyKey });
+      if (!sent) {
+        // Preserve the uploaded payload and key so an ambiguous HTTP retry is the same attempt.
+        setAttachments(finalAttachments);
+        return;
+      }
+      retryAttemptRef.current = null;
       setText("");
       setAttachments([]);
     } finally {

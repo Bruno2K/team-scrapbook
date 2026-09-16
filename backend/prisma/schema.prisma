@@ -110,6 +110,7 @@ model Notification {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   type      NotificationType
   payload   Json
+  dedupeKey String?          @unique
   readAt    DateTime?
   createdAt DateTime         @default(now())
 }
@@ -224,10 +225,13 @@ model ChatMessage {
   conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   sender         User            @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  idempotencyKey String?
+  requestFingerprint String?
   content        String?
   type           ChatMessageType  @default(TEXT)
   attachments    Json?
   createdAt      DateTime        @default(now())
+  @@unique([senderId, idempotencyKey])
 }
 
 model ScrapMessage {

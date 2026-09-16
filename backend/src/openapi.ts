@@ -353,6 +353,48 @@ export const openApiSpec = {
         },
       },
     },
+    "/chat/messages": {
+      post: {
+        tags: ["Chat"],
+        summary: "Enviar mensagem",
+        description: "Persiste a mensagem e a atividade da conversa atomicamente. Repetições HTTP podem reutilizar a mesma Idempotency-Key; a entrega em tempo real e a notificação são pós-commit e best effort.",
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            in: "header",
+            name: "Idempotency-Key",
+            required: false,
+            schema: { type: "string", minLength: 1, maxLength: 128, pattern: "^[!-~]+$" },
+            description: "Chave opcional, escopada ao remetente e retida sem expiração. A mesma chave e payload retornam a mensagem original; payload diferente retorna 409.",
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["conversationId"],
+                additionalProperties: false,
+                properties: {
+                  conversationId: { type: "string" },
+                  content: { type: "string", nullable: true, maxLength: 4000 },
+                  type: { type: "string", enum: ["TEXT", "AUDIO", "VIDEO", "DOCUMENT"] },
+                  attachments: { type: "array", maxItems: 5, items: { type: "object" } },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": { description: "Nova mensagem criada" },
+          "200": { description: "Repetição idempotente; mensagem original retornada" },
+          "400": { description: "Payload ou Idempotency-Key inválida" },
+          "403": { description: "Política de participante, amizade ou bloqueio negou o envio" },
+          "409": { description: "Idempotency-Key reutilizada com outro payload" },
+        },
+      },
+    },
     "/users/me": {
       get: {
         tags: ["Users"],

@@ -10,7 +10,17 @@ import {
 } from "../services/chatService.js";
 import { conversationToJSON, chatMessageToJSON } from "../views/chatView.js";
 import { createNotification } from "../modules/notifications/index.js";
-import { getOtherParticipant, sendMessageSchema } from "../modules/messaging/index.js";
+import {
+  getOtherParticipant,
+  MessageIdempotencyConflictError,
+  sendMessageSchema,
+} from "../modules/messaging/index.js";
+
+function readIdempotencyKey(req: Request): string | null | "invalid" {
+  const value = req.get("Idempotency-Key");
+  if (value === undefined) return null;
+  return /^[\x21-\x7e]{1,128}$/.test(value) ? value : "invalid";
+}
 
 const createConversationSchema = z.object({
   otherUserId: z.string().min(1, "otherUserId é obrigatório").max(128),
@@ -80,40 +90,60 @@ export async function postMessage(req: Request, res: Response) {
     return;
   }
   const { conversationId, content, type, attachments } = parsed.data;
-  const message = await createMessage({
-    conversationId,
-    senderId: req.actor.id,
-    content: content ?? null,
-    type,
-    attachments: attachments?.length ? attachments : undefined,
-  });
-  if (!message) {
-    res.status(403).json({ message: "Não é possível enviar mensagem nesta conversa" });
+  const idempotencyKey = readIdempotencyKey(req);
+  if (idempotencyKey === "invalid") {
+    res.status(400).json({ message: "Idempotency-Key inválida" });
     return;
   }
   const recipientId = await getOtherParticipant(conversationId, req.actor.id);
-  if (recipientId) {
-    await createNotification({
-      userId: recipientId,
-      type: "CHAT_MESSAGE",
-      payload: { conversationId, messageId: message.id },
+  try {
+    const outcome = await createMessage({
+      conversationId,
+      senderId: req.actor.id,
+      content: content ?? null,
+      type,
+      attachments: attachments?.length ? attachments : undefined,
+      idempotencyKey: idempotencyKey ?? undefined,
+    }, {
+      afterCommit: recipientId
+        ? async (message) => createNotification({
+          userId: recipientId,
+          type: "CHAT_MESSAGE",
+          payload: { conversationId, messageId: message.id },
+          dedupeKey: `chat-message:${message.id}`,
+        })
+        : undefined,
     });
-  }
-  const json = chatMessageToJSON(message);
-  res.status(201).json(json);
+    if (!outcome) {
+      res.status(403).json({ message: "Não é possível enviar mensagem nesta conversa" });
+      return;
+    }
+    const json = chatMessageToJSON(outcome.message);
+    res.status(outcome.disposition === "replayed" ? 200 : 201).json(json);
 
-  // If recipient is AI-managed, generate reply in background and push via Socket to human
-  if (recipientId) {
-    setImmediate(async () => {
-      const aiMessage = await triggerAiReplyIfNeeded(
-        conversationId,
-        req.actor!.id,
-        recipientId
-      );
-      if (aiMessage) {
-        const io = req.app.get("io") as Server | undefined;
-        if (io) io.to(`user:${req.actor!.id}`).emit("message", chatMessageToJSON(aiMessage));
-      }
-    });
+    // Provider work and Socket delivery are post-commit, best effort, and only run for a new message.
+    if (recipientId && outcome.disposition === "created") {
+      setImmediate(async () => {
+        try {
+          const aiMessage = await triggerAiReplyIfNeeded(
+            conversationId,
+            req.actor!.id,
+            recipientId
+          );
+          if (aiMessage) {
+            const io = req.app.get("io") as Server | undefined;
+            if (io) io.to(`user:${req.actor!.id}`).emit("message", chatMessageToJSON(aiMessage));
+          }
+        } catch {
+          // The human message is committed; Gemini/realtime failure is best effort.
+        }
+      });
+    }
+  } catch (error) {
+    if (error instanceof MessageIdempotencyConflictError) {
+      res.status(409).json({ message: "Idempotency-Key já usada com outra mensagem" });
+      return;
+    }
+    res.status(500).json({ message: "Erro ao enviar mensagem" });
   }
 }

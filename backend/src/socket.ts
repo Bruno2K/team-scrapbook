@@ -54,25 +54,30 @@ export function setupSocket(httpServer: HttpServer): Server {
         return;
       }
       const { conversationId, content, type, attachments } = parsed.data;
-      const message = await createMessage({
+      const recipientId = await getOtherParticipant(conversationId, userId);
+      const outcome = await createMessage({
         conversationId,
         senderId: userId,
         content,
         type,
         attachments: attachments.length ? attachments : undefined,
+      }, {
+        afterCommit: recipientId
+          ? async (message) => createNotification({
+            userId: recipientId,
+            type: "CHAT_MESSAGE",
+            payload: { conversationId, messageId: message.id },
+            dedupeKey: `chat-message:${message.id}`,
+          })
+          : undefined,
       });
-      if (!message) {
+      if (!outcome) {
         socket.emit("security:error", { code: "FORBIDDEN" });
         return;
       }
+      const message = outcome.message;
       const json = chatMessageToJSON(message);
-      const recipientId = await getOtherParticipant(conversationId, userId);
       if (recipientId) {
-        await createNotification({
-          userId: recipientId,
-          type: "CHAT_MESSAGE",
-          payload: { conversationId, messageId: message.id },
-        });
         io.to(`user:${recipientId}`).emit("message", json);
         socket.emit("message", json);
         // If recipient is AI-managed, generate reply and emit to human
