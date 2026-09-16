@@ -1,0 +1,26 @@
+# Release evidence: `<version or candidate>`
+
+- Candidate Git SHA:
+- Tag/version (when approved):
+- Environment:
+- Frontend deployment ID and provider link:
+- Frontend Git SHA observed by smoke:
+- Backend deployment ID and provider link:
+- Backend Git SHA observed by smoke:
+- Migration status and CI job link:
+- Pull Request Quality Gate run:
+  - Frontend quality:
+  - Backend unit and build:
+  - PostgreSQL migrations and integration:
+- Independent review evidence:
+  - Tester / Failure Analyst:
+  - Architecture / Security:
+- `main` protection/ruleset status and evidence:
+- Post-deploy smoke run:
+  - Verification mode: `full` or reduced-assurance `legacy rollback`
+  - Process health:
+  - Database readiness:
+  - Frontend/API configuration coherence:
+- Remaining known risk:
+- Unresolved blocker: `none` or details
+- Release decision and approver:

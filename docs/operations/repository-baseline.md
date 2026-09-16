@@ -102,3 +102,10 @@ the PostgreSQL migration pass, all database-backed integration suites pass, and 
 are reachable. The remaining lint and unit-test failures are recorded engineering debt rather than
 evidence of a broken runtime. `v0.1.0` therefore points to the unmodified candidate commit above,
 not to the documentation commit created by Issue #20.
+
+## Release safety
+
+The executable release gate, manual post-deploy smoke workflow, release evidence format, provider
+rollback steps, database incident policy, configuration-flag policy, and required `main` protection
+are maintained in [`release-safety.md`](release-safety.md). The smoke command is repository-owned and
+does not require Steam, Gemini, R2, or Giphy credentials.
