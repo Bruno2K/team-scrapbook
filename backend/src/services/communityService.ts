@@ -2,7 +2,7 @@ import { prisma } from "../db/client.js";
 import type { TF2Class, Team } from "@prisma/client";
 import type { User } from "@prisma/client";
 import { listFriends } from "./userService.js";
-import { createNotification, deleteByJoinRequestId } from "./notificationService.js";
+import { createNotification, deleteByJoinRequestId } from "../modules/notifications/index.js";
 
 export interface ListCommunitiesOptions {
   userId?: string;

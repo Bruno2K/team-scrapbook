@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { listScrapsReceived, listScrapsSent, createScrap } from "../services/scrapService.js";
-import { createNotification } from "../services/notificationService.js";
+import { createNotification } from "../modules/notifications/index.js";
 import { scrapToJSON } from "../views/scrapView.js";
 
 const attachmentSchema = z.object({
