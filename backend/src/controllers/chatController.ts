@@ -9,46 +9,29 @@ import {
   triggerAiReplyIfNeeded,
 } from "../services/chatService.js";
 import { conversationToJSON, chatMessageToJSON } from "../views/chatView.js";
-import { prisma } from "../db/client.js";
 import { createNotification } from "../modules/notifications/index.js";
+import { getOtherParticipant, sendMessageSchema } from "../modules/messaging/index.js";
 
 const createConversationSchema = z.object({
-  otherUserId: z.string().min(1, "otherUserId é obrigatório"),
-});
-
-const sendMessageSchema = z.object({
-  conversationId: z.string().min(1, "conversationId é obrigatório"),
-  content: z.string().nullable().optional(),
-  type: z.enum(["TEXT", "AUDIO", "VIDEO", "DOCUMENT"]).default("TEXT"),
-  attachments: z
-    .array(
-      z.object({
-        url: z.string().url(),
-        type: z.string(),
-        filename: z.string().optional(),
-      })
-    )
-    .optional()
-    .default([]),
-});
+  otherUserId: z.string().min(1, "otherUserId é obrigatório").max(128),
+}).strict();
 
 export async function getConversations(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
   try {
-    const convos = await listConversations(req.user.id);
-    const json = convos.map((c) => conversationToJSON(c, req.user!.id));
+    const convos = await listConversations(req.actor.id);
+    const json = convos.map((c) => conversationToJSON(c, req.actor!.id));
     res.json(json);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao listar conversas";
-    res.status(500).json({ message });
+    res.status(500).json({ message: "Erro ao listar conversas" });
   }
 }
 
 export async function postConversation(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -57,24 +40,24 @@ export async function postConversation(req: Request, res: Response) {
     res.status(400).json({ message: parsed.error.errors[0]?.message ?? "Dados inválidos" });
     return;
   }
-  const conv = await getOrCreateConversation(req.user.id, parsed.data.otherUserId);
+  const conv = await getOrCreateConversation(req.actor.id, parsed.data.otherUserId);
   if (!conv) {
     res.status(403).json({ message: "Não é possível conversar com este usuário (apenas amigos)" });
     return;
   }
-  const json = conversationToJSON(conv, req.user.id);
+  const json = conversationToJSON(conv, req.actor.id);
   res.status(201).json(json);
 }
 
 export async function getConversationMessages(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
   const { conversationId } = req.params;
   const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 100);
   const before = typeof req.query.before === "string" ? req.query.before : undefined;
-  const result = await getMessages(conversationId, req.user.id, { limit, before });
+  const result = await getMessages(conversationId, req.actor.id, { limit, before });
   if (!result) {
     res.status(404).json({ message: "Conversa não encontrada" });
     return;
@@ -87,7 +70,7 @@ export async function getConversationMessages(req: Request, res: Response) {
 }
 
 export async function postMessage(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -99,7 +82,7 @@ export async function postMessage(req: Request, res: Response) {
   const { conversationId, content, type, attachments } = parsed.data;
   const message = await createMessage({
     conversationId,
-    senderId: req.user.id,
+    senderId: req.actor.id,
     content: content ?? null,
     type,
     attachments: attachments?.length ? attachments : undefined,
@@ -108,15 +91,7 @@ export async function postMessage(req: Request, res: Response) {
     res.status(403).json({ message: "Não é possível enviar mensagem nesta conversa" });
     return;
   }
-  const conv = await prisma.conversation.findUnique({
-    where: { id: conversationId },
-    select: { user1Id: true, user2Id: true },
-  });
-  const recipientId = conv
-    ? conv.user1Id === req.user!.id
-      ? conv.user2Id
-      : conv.user1Id
-    : null;
+  const recipientId = await getOtherParticipant(conversationId, req.actor.id);
   if (recipientId) {
     await createNotification({
       userId: recipientId,
@@ -132,12 +107,12 @@ export async function postMessage(req: Request, res: Response) {
     setImmediate(async () => {
       const aiMessage = await triggerAiReplyIfNeeded(
         conversationId,
-        req.user!.id,
+        req.actor!.id,
         recipientId
       );
       if (aiMessage) {
         const io = req.app.get("io") as Server | undefined;
-        if (io) io.to(`user:${req.user!.id}`).emit("message", chatMessageToJSON(aiMessage));
+        if (io) io.to(`user:${req.actor!.id}`).emit("message", chatMessageToJSON(aiMessage));
       }
     });
   }

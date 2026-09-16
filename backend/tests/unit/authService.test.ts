@@ -23,7 +23,7 @@ vi.mock("bcryptjs", () => ({
   },
 }));
 
-import { register, login } from "../../src/services/authService";
+import { AuthServiceError, register, login } from "../../src/services/authService";
 
 describe("authService", () => {
   beforeEach(() => {
@@ -76,9 +76,18 @@ describe("authService", () => {
 
       await expect(
         register({ name: "Foo", nickname: "taken", password: "secret123" })
-      ).rejects.toThrow("Nickname já em uso");
+      ).rejects.toMatchObject({ code: "NICKNAME_TAKEN" });
 
       expect(mocks.create).not.toHaveBeenCalled();
+    });
+
+    it("normalizes a database uniqueness race", async () => {
+      mocks.findUnique.mockResolvedValue(null);
+      mocks.create.mockRejectedValue({ code: "P2002", message: "sensitive database details" });
+
+      await expect(
+        register({ name: "Foo", nickname: "raced", password: "secret123" })
+      ).rejects.toEqual(expect.objectContaining<AuthServiceError>({ code: "NICKNAME_TAKEN" }));
     });
   });
 
@@ -109,9 +118,9 @@ describe("authService", () => {
     it("throws when user not found", async () => {
       mocks.findUnique.mockResolvedValue(null);
 
-      await expect(login({ nickname: "missing", password: "any" })).rejects.toThrow(
-        "Nickname ou senha inválidos"
-      );
+      await expect(login({ nickname: "missing", password: "any" })).rejects.toMatchObject({
+        code: "INVALID_CREDENTIALS",
+      });
     });
   });
 });

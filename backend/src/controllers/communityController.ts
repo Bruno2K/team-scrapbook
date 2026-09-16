@@ -16,6 +16,7 @@ import {
   getCommunityById,
   getMember,
   canManageCommunity,
+  canDeleteCommunity,
   createCommunity as createCommunityService,
   updateCommunity as updateCommunityService,
   deleteCommunity as deleteCommunityService,
@@ -49,7 +50,7 @@ export async function getCommunities(req: Request, res: Response) {
   try {
     const search = typeof req.query.search === "string" ? req.query.search : undefined;
     const memberOnly = req.query.memberOnly === "true";
-    const userId = req.user?.id;
+    const userId = req.actor?.id;
 
     if (memberOnly && userId) {
       const list = await listCommunitiesWhereMember(userId, 50);
@@ -68,7 +69,7 @@ export async function getCommunities(req: Request, res: Response) {
 
 export async function getRecommendedCommunities(req: Request, res: Response) {
   try {
-    const userId = req.user?.id;
+    const userId = req.actor?.id;
     if (!userId) {
       return res.status(200).json([]);
     }
@@ -81,7 +82,7 @@ export async function getRecommendedCommunities(req: Request, res: Response) {
 
 export async function getHypeCommunities(req: Request, res: Response) {
   try {
-    const userId = req.user?.id;
+    const userId = req.actor?.id;
     const list = await listHypeCommunities({ userId, limit: 20 });
     res.status(200).json(list.map(communityWithMetaToJSON));
   } catch {
@@ -101,7 +102,7 @@ export async function getCommunity(req: Request, res: Response) {
       res.status(404).json({ message: "Comunidade não encontrada" });
       return;
     }
-    const userId = req.user?.id;
+    const userId = req.actor?.id;
     const membership = userId ? await getMember(userId, id) : null;
     const isMember = !!membership;
     const isAdmin = membership?.role === "ADMIN" || community.ownerId === userId;
@@ -114,7 +115,7 @@ export async function getCommunity(req: Request, res: Response) {
 }
 
 export async function createCommunity(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -129,7 +130,7 @@ export async function createCommunity(req: Request, res: Response) {
   }
   try {
     const community = await createCommunityService({
-      userId: req.user.id,
+      userId: req.actor.id,
       name: name.trim(),
       description: description.trim(),
       isPrivate: isPrivate === true,
@@ -147,7 +148,7 @@ export async function createCommunity(req: Request, res: Response) {
 }
 
 export async function updateCommunity(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -156,7 +157,7 @@ export async function updateCommunity(req: Request, res: Response) {
     res.status(400).json({ message: "ID da comunidade é obrigatório" });
     return;
   }
-  const canManage = await canManageCommunity(req.user.id, id);
+  const canManage = await canManageCommunity(req.actor.id, id);
   if (!canManage) {
     res.status(403).json({ message: "Sem permissão para editar esta comunidade" });
     return;
@@ -177,7 +178,7 @@ export async function updateCommunity(req: Request, res: Response) {
 }
 
 export async function deleteCommunity(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -186,8 +187,8 @@ export async function deleteCommunity(req: Request, res: Response) {
     res.status(400).json({ message: "ID da comunidade é obrigatório" });
     return;
   }
-  const canManage = await canManageCommunity(req.user.id, id);
-  if (!canManage) {
+  const canDelete = await canDeleteCommunity(req.actor.id, id);
+  if (!canDelete) {
     res.status(403).json({ message: "Sem permissão para excluir esta comunidade" });
     return;
   }
@@ -200,7 +201,7 @@ export async function deleteCommunity(req: Request, res: Response) {
 }
 
 export async function joinCommunity(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -210,7 +211,7 @@ export async function joinCommunity(req: Request, res: Response) {
     return;
   }
   try {
-    await joinCommunityService(req.user.id, id);
+    await joinCommunityService(req.actor.id, id);
     res.status(200).json({ message: "Você entrou na comunidade" });
   } catch (err) {
     const code = (err as Error & { code?: string }).code;
@@ -223,7 +224,7 @@ export async function joinCommunity(req: Request, res: Response) {
 }
 
 export async function leaveCommunity(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -233,7 +234,7 @@ export async function leaveCommunity(req: Request, res: Response) {
     return;
   }
   try {
-    const ok = await leaveCommunityService(req.user.id, id);
+    const ok = await leaveCommunityService(req.actor.id, id);
     if (!ok) {
       res.status(400).json({ message: "Não foi possível sair (dono não pode sair)" });
       return;
@@ -257,11 +258,11 @@ export async function getCommunityMembers(req: Request, res: Response) {
       return;
     }
     if (community.isPrivate) {
-      if (!req.user?.id) {
+      if (!req.actor?.id) {
         res.status(403).json({ message: "Esta comunidade é privada. Solicite entrada ou aguarde um convite para ver os membros." });
         return;
       }
-      const membership = await getMember(req.user.id, id);
+      const membership = await getMember(req.actor.id, id);
       if (!membership) {
         res.status(403).json({ message: "Esta comunidade é privada. Solicite entrada ou aguarde um convite para ver os membros." });
         return;
@@ -275,7 +276,7 @@ export async function getCommunityMembers(req: Request, res: Response) {
 }
 
 export async function removeMember(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -286,7 +287,7 @@ export async function removeMember(req: Request, res: Response) {
     return;
   }
   try {
-    const ok = await removeMemberService(communityId, userId, req.user.id);
+    const ok = await removeMemberService(communityId, userId, req.actor.id);
     if (!ok) {
       res.status(403).json({ message: "Não foi possível remover este membro" });
       return;
@@ -310,11 +311,11 @@ export async function getCommunityPosts(req: Request, res: Response) {
       return;
     }
     if (community.isPrivate) {
-      if (!req.user?.id) {
+      if (!req.actor?.id) {
         res.status(403).json({ message: "Esta comunidade é privada. Solicite entrada ou aguarde um convite para ver o feed." });
         return;
       }
-      const membership = await getMember(req.user.id, id);
+      const membership = await getMember(req.actor.id, id);
       if (!membership) {
         res.status(403).json({ message: "Esta comunidade é privada. Solicite entrada ou aguarde um convite para ver o feed." });
         return;
@@ -328,7 +329,7 @@ export async function getCommunityPosts(req: Request, res: Response) {
 }
 
 export async function postToCommunity(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -353,7 +354,7 @@ export async function postToCommunity(req: Request, res: Response) {
     return;
   }
   try {
-    const item = await createCommunityPost(req.user.id, id, {
+    const item = await createCommunityPost(req.actor.id, id, {
       content: content || "",
       allowComments,
       allowReactions,
@@ -372,7 +373,7 @@ export async function postToCommunity(req: Request, res: Response) {
 // --- Invites (private communities) ---
 
 export async function postInvite(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -383,7 +384,7 @@ export async function postInvite(req: Request, res: Response) {
     return;
   }
   try {
-    const invite = await createInvite(communityId, req.user.id, inviteeId);
+    const invite = await createInvite(communityId, req.actor.id, inviteeId);
     if (!invite) {
       res.status(403).json({ message: "Não foi possível enviar o convite" });
       return;
@@ -401,12 +402,12 @@ export async function postInvite(req: Request, res: Response) {
 }
 
 export async function getMyPendingInvites(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
   try {
-    const invites = await listPendingInvitesForUser(req.user.id);
+    const invites = await listPendingInvitesForUser(req.actor.id);
     res.status(200).json(
       invites.map((i) => ({
         id: i.id,
@@ -422,7 +423,7 @@ export async function getMyPendingInvites(req: Request, res: Response) {
 }
 
 export async function getCommunityInvites(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -432,7 +433,11 @@ export async function getCommunityInvites(req: Request, res: Response) {
     return;
   }
   try {
-    const invites = await listCommunityInvites(communityId, req.user.id);
+    const invites = await listCommunityInvites(communityId, req.actor.id);
+    if (!invites) {
+      res.status(403).json({ message: "Sem permissão para ver convites" });
+      return;
+    }
     res.status(200).json(
       invites.map((i) => ({
         id: i.id,
@@ -447,7 +452,7 @@ export async function getCommunityInvites(req: Request, res: Response) {
 }
 
 export async function patchInvite(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -459,7 +464,7 @@ export async function patchInvite(req: Request, res: Response) {
   }
   try {
     if (action === "accept") {
-      const member = await acceptInvite(inviteId, req.user.id);
+      const member = await acceptInvite(inviteId, req.actor.id);
       if (!member) {
         res.status(403).json({ message: "Convite inválido ou já processado" });
         return;
@@ -467,7 +472,7 @@ export async function patchInvite(req: Request, res: Response) {
       res.status(200).json({ message: "Convite aceito", communityId: member.communityId });
       return;
     }
-    const ok = await declineInvite(inviteId, req.user.id);
+    const ok = await declineInvite(inviteId, req.actor.id);
     if (!ok) {
       res.status(403).json({ message: "Convite inválido ou já processado" });
       return;
@@ -481,7 +486,7 @@ export async function patchInvite(req: Request, res: Response) {
 // --- Join requests (private communities) ---
 
 export async function postJoinRequest(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -491,7 +496,7 @@ export async function postJoinRequest(req: Request, res: Response) {
     return;
   }
   try {
-    const request = await createJoinRequest(communityId, req.user.id);
+    const request = await createJoinRequest(communityId, req.actor.id);
     if (!request) {
       res.status(403).json({ message: "Não foi possível solicitar entrada" });
       return;
@@ -508,7 +513,7 @@ export async function postJoinRequest(req: Request, res: Response) {
 }
 
 export async function getJoinRequests(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -518,7 +523,11 @@ export async function getJoinRequests(req: Request, res: Response) {
     return;
   }
   try {
-    const requests = await listJoinRequests(communityId, req.user.id);
+    const requests = await listJoinRequests(communityId, req.actor.id);
+    if (!requests) {
+      res.status(403).json({ message: "Sem permissão para ver solicitações" });
+      return;
+    }
     res.status(200).json(
       requests.map((r) => ({
         id: r.id,
@@ -533,7 +542,7 @@ export async function getJoinRequests(req: Request, res: Response) {
 }
 
 export async function patchJoinRequest(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -546,7 +555,7 @@ export async function patchJoinRequest(req: Request, res: Response) {
   }
   try {
     if (action === "approve") {
-      const member = await approveJoinRequest(requestId, communityId, req.user.id);
+      const member = await approveJoinRequest(requestId, communityId, req.actor.id);
       if (!member) {
         res.status(403).json({ message: "Não foi possível aprovar a solicitação" });
         return;
@@ -554,7 +563,7 @@ export async function patchJoinRequest(req: Request, res: Response) {
       res.status(200).json({ message: "Solicitação aprovada" });
       return;
     }
-    const ok = await rejectJoinRequest(requestId, communityId, req.user.id);
+    const ok = await rejectJoinRequest(requestId, communityId, req.actor.id);
     if (!ok) {
       res.status(403).json({ message: "Não foi possível rejeitar a solicitação" });
       return;
@@ -566,7 +575,7 @@ export async function patchJoinRequest(req: Request, res: Response) {
 }
 
 export async function getMyPendingJoinRequest(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -576,7 +585,7 @@ export async function getMyPendingJoinRequest(req: Request, res: Response) {
     return;
   }
   try {
-    const request = await getPendingJoinRequest(communityId, req.user.id);
+    const request = await getPendingJoinRequest(communityId, req.actor.id);
     if (!request || request.status !== "PENDING") {
       res.status(200).json({ pending: false });
       return;
@@ -593,7 +602,7 @@ export async function getMyPendingJoinRequest(req: Request, res: Response) {
 }
 
 export async function patchMemberRole(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -606,7 +615,7 @@ export async function patchMemberRole(req: Request, res: Response) {
     return;
   }
   try {
-    const ok = await updateMemberRole(communityId, userId, req.user.id, role);
+    const ok = await updateMemberRole(communityId, userId, req.actor.id, role);
     if (!ok) {
       res.status(403).json({ message: "Não foi possível alterar a função do membro" });
       return;

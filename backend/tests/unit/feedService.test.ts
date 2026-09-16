@@ -39,6 +39,12 @@ describe("feedService", () => {
       const result = await listFeed();
 
       expect(mocks.findMany).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { communityId: null },
+            { community: { is: { isPrivate: false } } },
+          ],
+        },
         orderBy: { createdAt: "desc" },
         take: 50,
         include: {

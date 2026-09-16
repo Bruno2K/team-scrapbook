@@ -31,24 +31,30 @@ import { getScrapById } from "../services/scrapService.js";
 import { feedItemToJSON, scrapToFeedItemJSON } from "../views/feedView.js";
 import { userToJSON } from "../views/userView.js";
 import { commentToJSON, type CommentWithUser } from "../views/commentView.js";
+import {
+  canInteractWithFeedItem,
+  canInteractWithScrap,
+  canViewFeedItem,
+  canViewScrap,
+} from "../modules/content/index.js";
 
 const attachmentSchema = z.object({
   url: z.string().url(),
   type: z.enum(["image", "video", "audio", "document"]),
-  filename: z.string().optional(),
-});
+  filename: z.string().max(255).optional(),
+}).strict();
 
 const createPostSchema = z.object({
-  content: z.string().default(""),
-  type: z.enum(["post", "achievement", "community", "scrap"]).optional(),
+  content: z.string().max(4000).default(""),
+  type: z.enum(["post", "achievement"]).optional(),
   allowComments: z.boolean().optional(),
   allowReactions: z.boolean().optional(),
-  attachments: z.array(attachmentSchema).optional().default([]),
-});
+  attachments: z.array(attachmentSchema).max(5).optional().default([]),
+}).strict();
 
 export async function getFeed(req: Request, res: Response) {
   try {
-    const userId = req.user?.id;
+    const userId = req.actor?.id;
     const entries = await listFeed(userId);
     const feedIds = entries
       .filter((e): e is typeof e & { kind: "feed" } => e.kind === "feed")
@@ -107,14 +113,14 @@ export async function getFeed(req: Request, res: Response) {
 }
 
 export async function getMyFeed(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
   try {
-    const userId = req.user.id;
+    const userId = req.actor.id;
     const [entries, dbUser] = await Promise.all([
-      listMyProfileFeed(userId),
+      listMyProfileFeed(userId, userId),
       prisma.user.findUnique({
         where: { id: userId },
         select: { pinnedPostIds: true },
@@ -201,7 +207,7 @@ export async function getUserFeed(req: Request, res: Response) {
     res.status(400).json({ message: "userId é obrigatório" });
     return;
   }
-  const viewerId = req.user?.id ?? null;
+  const viewerId = req.actor?.id ?? null;
   try {
     const target = await prisma.user.findUnique({
       where: { id: userId },
@@ -216,7 +222,7 @@ export async function getUserFeed(req: Request, res: Response) {
       ? (target.pinnedPostIds as string[]).filter((id): id is string => typeof id === "string")
       : [];
 
-    const entriesResolved = await listMyProfileFeed(userId);
+    const entriesResolved = await listMyProfileFeed(userId, viewerId);
 
     const feedIds = entriesResolved
       .filter((e): e is typeof e & { kind: "feed" } => e.kind === "feed")
@@ -295,7 +301,7 @@ export async function getPost(req: Request, res: Response) {
     return;
   }
   try {
-    const userId = req.user?.id;
+    const userId = req.actor?.id;
     // Tentar buscar como FeedItem primeiro
     const item = await getFeedItemById(id);
     let isScrap = false;
@@ -338,6 +344,11 @@ export async function getPost(req: Request, res: Response) {
       res.status(404).json({ message: "Post não encontrado" });
       return;
     }
+
+    if (!(await canViewFeedItem(userId ?? null, id))) {
+      res.status(404).json({ message: "Post não encontrado" });
+      return;
+    }
     
     // Processar FeedItem normalmente
     const [reactionCounts, myReaction, commentsTree] = await Promise.all([
@@ -357,7 +368,7 @@ export async function getPost(req: Request, res: Response) {
 }
 
 export async function postFeed(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -376,7 +387,7 @@ export async function postFeed(req: Request, res: Response) {
 
   try {
     const item = await createPost({
-      userId: req.user.id,
+      userId: req.actor.id,
       content: content || "",
       type: parsed.data.type,
       allowComments: parsed.data.allowComments,
@@ -396,12 +407,22 @@ export async function getComments(req: Request, res: Response) {
     return;
   }
   try {
-    // Tentar buscar como FeedItem primeiro, depois como Scrap
-    let tree = await listCommentsByFeedItemId(feedItemId);
-    if (tree.length === 0) {
+    const userId = req.actor?.id ?? null;
+    const feedItem = await getFeedItemById(feedItemId);
+    let tree;
+    if (feedItem) {
+      if (!(await canViewFeedItem(userId, feedItemId))) {
+        res.status(404).json({ message: "Post não encontrado" });
+        return;
+      }
+      tree = await listCommentsByFeedItemId(feedItemId);
+    } else {
+      if (!(await canViewScrap(userId, feedItemId))) {
+        res.status(404).json({ message: "Post não encontrado" });
+        return;
+      }
       tree = await listCommentsByScrapId(feedItemId);
     }
-    const userId = req.user?.id ?? null;
     const json = tree.map((c) => commentToJSON(c, userId));
     res.status(200).json(json);
   } catch (err) {
@@ -410,12 +431,12 @@ export async function getComments(req: Request, res: Response) {
 }
 
 const createCommentSchema = z.object({
-  content: z.string().min(1, "Conteúdo é obrigatório"),
+  content: z.string().min(1, "Conteúdo é obrigatório").max(2000),
   parentId: z.string().nullable().optional(),
-});
+}).strict();
 
 export async function createComment(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -430,9 +451,16 @@ export async function createComment(req: Request, res: Response) {
     return;
   }
   try {
+    const canInteract = (await getFeedItemById(feedItemId))
+      ? await canInteractWithFeedItem(req.actor.id, feedItemId)
+      : await canInteractWithScrap(req.actor.id, feedItemId);
+    if (!canInteract) {
+      res.status(403).json({ message: "Interação não permitida" });
+      return;
+    }
     // Tentar como FeedItem primeiro
     let result = await createCommentService(
-      req.user.id,
+      req.actor.id,
       feedItemId,
       parsed.data.content,
       parsed.data.parentId ?? undefined,
@@ -441,7 +469,7 @@ export async function createComment(req: Request, res: Response) {
     // Se não encontrou, tentar como Scrap
     if (result === null) {
       result = await createCommentService(
-        req.user.id,
+        req.actor.id,
         null,
         parsed.data.content,
         parsed.data.parentId ?? undefined,
@@ -456,7 +484,7 @@ export async function createComment(req: Request, res: Response) {
       res.status(403).json({ message: "Comentários desativados neste post" });
       return;
     }
-    const userId = req.user?.id ?? null;
+    const userId = req.actor?.id ?? null;
     res.status(201).json(commentToJSON(result as CommentWithUser, userId));
   } catch (err) {
     res.status(500).json({ message: "Erro ao comentar" });
@@ -464,7 +492,7 @@ export async function createComment(req: Request, res: Response) {
 }
 
 export async function setPostReaction(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -480,10 +508,10 @@ export async function setPostReaction(req: Request, res: Response) {
   }
   try {
     // Tentar como FeedItem primeiro
-    let ok = await setPostReactionService(feedItemId, req.user.id, reaction);
+    let ok = await setPostReactionService(feedItemId, req.actor.id, reaction);
     if (!ok) {
       // Se não funcionou, tentar como Scrap
-      ok = await setScrapReactionService(feedItemId, req.user.id, reaction);
+      ok = await setScrapReactionService(feedItemId, req.actor.id, reaction);
       if (!ok) {
         res.status(403).json({ message: "Reações desativadas neste post ou você não tem permissão" });
         return;
@@ -496,7 +524,7 @@ export async function setPostReaction(req: Request, res: Response) {
 }
 
 export async function removePostReaction(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -506,11 +534,18 @@ export async function removePostReaction(req: Request, res: Response) {
     return;
   }
   try {
+    const canInteract = (await getFeedItemById(feedItemId))
+      ? await canInteractWithFeedItem(req.actor.id, feedItemId)
+      : await canInteractWithScrap(req.actor.id, feedItemId);
+    if (!canInteract) {
+      res.status(403).json({ message: "Interação não permitida" });
+      return;
+    }
     // Tentar remover como FeedItem primeiro
-    let removed = await removePostReactionService(feedItemId, req.user.id);
+    let removed = await removePostReactionService(feedItemId, req.actor.id);
     if (!removed) {
       // Se não funcionou, tentar como Scrap
-      removed = await removeScrapReactionService(feedItemId, req.user.id);
+      removed = await removeScrapReactionService(feedItemId, req.actor.id);
     }
     res.status(200).json({ removed });
   } catch (err) {
@@ -519,7 +554,7 @@ export async function removePostReaction(req: Request, res: Response) {
 }
 
 export async function deletePost(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -529,7 +564,7 @@ export async function deletePost(req: Request, res: Response) {
     return;
   }
   try {
-    const deleted = await deleteFeedItem(feedItemId, req.user.id);
+    const deleted = await deleteFeedItem(feedItemId, req.actor.id);
     if (!deleted) {
       res.status(403).json({ message: "Não autorizado a excluir este post" });
       return;

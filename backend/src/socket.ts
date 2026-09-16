@@ -1,12 +1,24 @@
 import { Server as HttpServer } from "http";
 import { Server, type Socket } from "socket.io";
-import { verifyToken } from "./services/authService.js";
-import { createMessage, isParticipant, triggerAiReplyIfNeeded } from "./services/chatService.js";
+import { createMessage, triggerAiReplyIfNeeded } from "./services/chatService.js";
 import { createNotification } from "./modules/notifications/index.js";
 import { chatMessageToJSON } from "./views/chatView.js";
 import { prisma } from "./db/client.js";
+import { resolveAccessToken, type AuthenticatedActor } from "./modules/identity/index.js";
+import { canSendOrSignal, getOtherParticipant, sendMessageSchema } from "./modules/messaging/index.js";
+import { messageLimiter } from "./middleware/abuseControls.js";
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "http://localhost:8080";
+
+export async function authenticateSocketToken(token: unknown): Promise<AuthenticatedActor | null> {
+  if (typeof token !== "string" || !token.trim()) return null;
+  try {
+    const actor = await resolveAccessToken(token);
+    return actor && !actor.isAiManaged ? actor : null;
+  } catch {
+    return null;
+  }
+}
 
 export function setupSocket(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
@@ -16,22 +28,13 @@ export function setupSocket(httpServer: HttpServer): Server {
     },
   });
 
-  io.on("connection", (socket: Socket) => {
-    const token =
-      (socket.handshake.auth?.token as string) ||
-      (socket.handshake.query?.token as string);
-    if (!token) {
+  io.on("connection", async (socket: Socket) => {
+    const actor = await authenticateSocketToken(socket.handshake.auth?.token);
+    if (!actor) {
       socket.disconnect(true);
       return;
     }
-    let userId: string;
-    try {
-      const payload = verifyToken(token);
-      userId = payload.userId;
-    } catch {
-      socket.disconnect(true);
-      return;
-    }
+    const userId = actor.id;
     socket.data.userId = userId;
     socket.join(`user:${userId}`);
 
@@ -40,42 +43,31 @@ export function setupSocket(httpServer: HttpServer): Server {
       .catch(() => {});
 
     socket.on("message", async (payload: unknown) => {
-      const body = payload as Record<string, unknown>;
-      const conversationId = typeof body?.conversationId === "string" ? body.conversationId : null;
-      const content = typeof body?.content === "string" ? body.content : typeof body?.content === "undefined" ? null : null;
-      const type = (body?.type === "TEXT" || body?.type === "AUDIO" || body?.type === "VIDEO" || body?.type === "DOCUMENT")
-        ? body.type
-        : "TEXT";
-      let attachments: Array<{ url: string; type: string; filename?: string }> | undefined;
-      if (Array.isArray(body?.attachments)) {
-        attachments = body.attachments
-          .filter((a: unknown) => a && typeof (a as Record<string, unknown>).url === "string")
-          .map((a: unknown) => {
-            const x = a as Record<string, unknown>;
-            return {
-              url: x.url as string,
-              type: (typeof x.type === "string" ? x.type : "document") as string,
-              filename: typeof x.filename === "string" ? x.filename : undefined,
-            };
-          });
-        if (attachments.length === 0) attachments = undefined;
+      const rateLimit = messageLimiter.consume(userId);
+      if (!rateLimit.allowed) {
+        socket.emit("security:error", { code: "RATE_LIMITED", retryAfter: rateLimit.retryAfterSeconds });
+        return;
       }
-      if (!conversationId) return;
+      const parsed = sendMessageSchema.safeParse(payload);
+      if (!parsed.success) {
+        socket.emit("security:error", { code: "INVALID_MESSAGE" });
+        return;
+      }
+      const { conversationId, content, type, attachments } = parsed.data;
       const message = await createMessage({
         conversationId,
         senderId: userId,
         content,
         type,
-        attachments,
+        attachments: attachments.length ? attachments : undefined,
       });
-      if (!message) return;
+      if (!message) {
+        socket.emit("security:error", { code: "FORBIDDEN" });
+        return;
+      }
       const json = chatMessageToJSON(message);
-      const conv = await prisma.conversation.findUnique({
-        where: { id: conversationId },
-        select: { user1Id: true, user2Id: true },
-      });
-      if (conv) {
-        const recipientId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+      const recipientId = await getOtherParticipant(conversationId, userId);
+      if (recipientId) {
         await createNotification({
           userId: recipientId,
           type: "CHAT_MESSAGE",
@@ -96,14 +88,10 @@ export function setupSocket(httpServer: HttpServer): Server {
       const body = payload as Record<string, unknown>;
       const conversationId = typeof body?.conversationId === "string" ? body.conversationId : null;
       if (!conversationId) return;
-      const ok = await isParticipant(conversationId, userId);
+      const ok = await canSendOrSignal(conversationId, userId);
       if (!ok) return;
-      const conv = await prisma.conversation.findUnique({
-        where: { id: conversationId },
-        select: { user1Id: true, user2Id: true },
-      });
-      if (conv) {
-        const recipientId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+      const recipientId = await getOtherParticipant(conversationId, userId);
+      if (recipientId) {
         io.to(`user:${recipientId}`).emit("typing", { conversationId, userId });
       }
     });

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authMiddleware, optionalAuthMiddleware, optionalAuthForSteam } from "../middleware/auth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import {
   getMe,
   updateMe,
@@ -29,6 +29,7 @@ import {
   syncSteam,
 } from "../controllers/steamController.js";
 import { getMyFeed, getUserFeed } from "../controllers/feedController.js";
+import { socialMutationRateLimit } from "../middleware/abuseControls.js";
 
 const router = Router();
 
@@ -44,13 +45,13 @@ router.post("/me/friend-requests/:requestId/decline", authMiddleware, declineFri
 router.get("/blocked", authMiddleware, getBlocked);
 router.get("/available", authMiddleware, getAvailableToAdd);
 router.get("/recommendations", authMiddleware, getRecommendations);
-router.post("/friends", authMiddleware, addFriend);
+router.post("/friends", authMiddleware, socialMutationRateLimit, addFriend);
 router.delete("/friends/:userId", authMiddleware, removeFriend);
 router.post("/:userId/block", authMiddleware, blockUser);
 router.delete("/:userId/block", authMiddleware, unblockUser);
 
 router.post("/me/steam-link", authMiddleware, linkSteam);
-router.get("/me/steam/auth", optionalAuthForSteam, getSteamAuthUrl);
+router.post("/me/steam/auth-url", authMiddleware, getSteamAuthUrl);
 router.get("/me/steam/callback", steamCallback);
 router.post("/me/steam/unlink", authMiddleware, unlinkSteam);
 router.post("/me/steam/sync", authMiddleware, syncSteam);

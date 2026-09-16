@@ -408,7 +408,7 @@ export const openApiSpec = {
         type: "http",
         scheme: "bearer",
         bearerFormat: "JWT",
-        description: "Token retornado em /auth/register ou /auth/login",
+        description: "Token retornado em /auth/register ou /auth/login. Envie somente no header Authorization; tokens de sessão em query string não são aceitos.",
       },
     },
     schemas: {

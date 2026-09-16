@@ -300,7 +300,7 @@ A API expõe documentação parcial em OpenAPI 3.0. Quando o backend estiver rod
 - `GET /users/me` - Obter perfil do usuário autenticado
 - `PUT /users/me` - Atualizar perfil
 - `POST /users/me/steam/link` - Vincular conta Steam
-- `GET /users/me/steam/auth` - Autenticação Steam (redirect)
+- `POST /users/me/steam/auth-url` - Obtém URL temporária para autenticação Steam
 - `POST /users/me/steam/sync` - Sincronizar dados Steam
 
 #### Feed

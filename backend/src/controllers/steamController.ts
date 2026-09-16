@@ -1,12 +1,11 @@
 import type { Request, Response } from "express";
-import jwt from "jsonwebtoken";
 import SteamAuth from "node-steam-openid";
 import { prisma } from "../db/client.js";
 import { userToJSON } from "../views/userView.js";
 import { toSteamId64, getPlayerSummaries } from "../services/steamService.js";
 import { syncSteamDataForUser } from "../services/steamSyncService.js";
+import { issuePurposeToken, verifyPurposeToken } from "../modules/identity/index.js";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-in-production";
 const STEAM_LINK_TOKEN_EXPIRES = "10m";
 
 /** Base URL of this backend (for Steam OpenID return_to). Must not be the frontend URL. */
@@ -30,7 +29,7 @@ function getSteamAuthInstance(returnUrl: string): SteamAuth {
 
 /** POST /users/me/steam-link - Opção A: link by SteamID64 or vanity URL */
 export async function linkSteam(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
@@ -56,22 +55,22 @@ export async function linkSteam(req: Request, res: Response) {
     }
 
     const existing = await prisma.user.findUnique({ where: { steamId64 } });
-    if (existing && existing.id !== req.user.id) {
+    if (existing && existing.id !== req.actor.id) {
       res.status(400).json({ message: "Esta conta Steam já está vinculada a outro usuário." });
       return;
     }
 
     await prisma.user.update({
-      where: { id: req.user.id },
+      where: { id: req.actor.id },
       data: {
         steamId64,
         steamLinkedAt: new Date(),
       },
     });
 
-    await syncSteamDataForUser(req.user.id);
+    await syncSteamDataForUser(req.actor.id);
     const user = await prisma.user.findUniqueOrThrow({
-      where: { id: req.user.id },
+      where: { id: req.actor.id },
       include: { steamGames: true, steamAchievements: true },
     });
     res.status(200).json(userToJSON(user));
@@ -81,44 +80,27 @@ export async function linkSteam(req: Request, res: Response) {
       res.status(503).json({ message: "Integração Steam não configurada." });
       return;
     }
-    res.status(400).json({ message });
+    res.status(400).json({ message: "Não foi possível vincular a conta Steam." });
   }
 }
 
-/** GET /users/me/steam/auth - redirect to Steam OpenID. Auth via Bearer or query token (for browser redirect). */
+/** POST /users/me/steam/auth-url - return a provider URL without putting the access token in a URL. */
 export async function getSteamAuthUrl(req: Request, res: Response) {
-  let userId: string | undefined = req.user?.id;
-  if (!userId) {
-    const queryToken = req.query?.token as string | undefined;
-    if (queryToken) {
-      try {
-        const payload = jwt.verify(queryToken, JWT_SECRET) as { userId: string };
-        userId = payload.userId;
-      } catch {
-        res.status(401).json({ message: "Token inválido ou expirado" });
-        return;
-      }
-    }
-  }
+  const userId = req.actor?.id;
   if (!userId) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
   const base = getBackendBaseUrl();
-  const linkToken = jwt.sign(
-    { userId, purpose: "steam-link" },
-    JWT_SECRET,
-    { expiresIn: STEAM_LINK_TOKEN_EXPIRES }
-  );
+  const linkToken = issuePurposeToken(userId, "steam-link", STEAM_LINK_TOKEN_EXPIRES);
   const returnUrl = `${base}/users/me/steam/callback?link_token=${linkToken}`;
 
   try {
     const steam = getSteamAuthInstance(returnUrl);
     const redirectUrl = await steam.getRedirectUrl();
-    res.redirect(redirectUrl);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao iniciar login Steam";
-    res.status(503).json({ message });
+    res.status(200).json({ url: redirectUrl });
+  } catch {
+    res.status(503).json({ message: "Integração Steam indisponível." });
   }
 }
 
@@ -131,9 +113,9 @@ export async function steamCallback(req: Request, res: Response) {
   }
   let userId: string;
   try {
-    const payload = jwt.verify(linkToken, JWT_SECRET) as { userId: string; purpose?: string };
-    if (payload.purpose !== "steam-link") throw new Error("Invalid purpose");
-    userId = payload.userId;
+    const actor = await verifyPurposeToken(linkToken, "steam-link");
+    if (!actor || actor.isAiManaged) throw new Error("Invalid actor");
+    userId = actor.id;
   } catch {
     redirectToFrontend(res, false, "Token inválido ou expirado.");
     return;
@@ -161,9 +143,8 @@ export async function steamCallback(req: Request, res: Response) {
 
     await syncSteamDataForUser(userId);
     redirectToFrontend(res, true);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Falha ao verificar conta Steam.";
-    redirectToFrontend(res, false, message);
+  } catch {
+    redirectToFrontend(res, false, "Falha ao verificar conta Steam.");
   }
 }
 
@@ -176,18 +157,18 @@ function redirectToFrontend(res: Response, success: boolean, message?: string) {
 
 /** POST /users/me/steam/unlink */
 export async function unlinkSteam(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
-  await prisma.userSteamAchievement.deleteMany({ where: { userId: req.user.id } });
-  await prisma.userSteamGame.deleteMany({ where: { userId: req.user.id } });
+  await prisma.userSteamAchievement.deleteMany({ where: { userId: req.actor.id } });
+  await prisma.userSteamGame.deleteMany({ where: { userId: req.actor.id } });
   await prisma.user.update({
-    where: { id: req.user.id },
+    where: { id: req.actor.id },
     data: { steamId64: null, steamLinkedAt: null },
   });
   const user = await prisma.user.findUniqueOrThrow({
-    where: { id: req.user.id },
+    where: { id: req.actor.id },
     include: { steamGames: true, steamAchievements: true },
   });
   res.status(200).json(userToJSON(user));
@@ -195,19 +176,18 @@ export async function unlinkSteam(req: Request, res: Response) {
 
 /** POST /users/me/steam/sync */
 export async function syncSteam(req: Request, res: Response) {
-  if (!req.user) {
+  if (!req.actor) {
     res.status(401).json({ message: "Não autorizado" });
     return;
   }
   try {
-    const result = await syncSteamDataForUser(req.user.id);
+    const result = await syncSteamDataForUser(req.actor.id);
     const user = await prisma.user.findUniqueOrThrow({
-      where: { id: req.user.id },
+      where: { id: req.actor.id },
       include: { steamGames: true, steamAchievements: true },
     });
     res.status(200).json({ ...userToJSON(user), steamSync: result });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao sincronizar.";
-    res.status(400).json({ message });
+  } catch {
+    res.status(400).json({ message: "Erro ao sincronizar a conta Steam." });
   }
 }

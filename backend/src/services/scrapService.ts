@@ -1,5 +1,6 @@
 import { prisma } from "../db/client.js";
 import type { ScrapReaction } from "@prisma/client";
+import { canInteract } from "../modules/relationships/index.js";
 
 export async function listScrapsReceived(toUserId: string, limit = 50) {
   return prisma.scrapMessage.findMany({
@@ -30,6 +31,7 @@ export interface CreateScrapInput {
 }
 
 export async function createScrap(input: CreateScrapInput) {
+  if (!(await canInteract(input.fromUserId, input.toUserId))) return null;
   return prisma.scrapMessage.create({
     data: {
       fromUserId: input.fromUserId,
@@ -49,7 +51,7 @@ export async function getScrapById(scrapId: string, userId?: string) {
   });
   if (!scrap) return null;
   // Verificar se o usuário tem acesso ao scrap
-  if (userId && scrap.fromUserId !== userId && scrap.toUserId !== userId) {
+  if (!userId || (scrap.fromUserId !== userId && scrap.toUserId !== userId)) {
     return null;
   }
   return scrap;

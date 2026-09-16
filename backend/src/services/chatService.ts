@@ -1,11 +1,13 @@
 import type { ChatMessageType } from "@prisma/client";
 import { prisma } from "../db/client.js";
-import { canChatWith, friendPair } from "./userService.js";
+import { friendPair } from "./userService.js";
+import { canChat } from "../modules/relationships/index.js";
+import { canSendOrSignal } from "../modules/messaging/index.js";
 import { generateReply, isGeminiConfigured } from "./geminiService.js";
 
 /** Get or create a conversation between the current user and another. Fails if not friends. */
 export async function getOrCreateConversation(meId: string, otherUserId: string) {
-  const allowed = await canChatWith(meId, otherUserId);
+  const allowed = await canChat(meId, otherUserId);
   if (!allowed) return null;
   const [u1, u2] = friendPair(meId, otherUserId);
   const existing = await prisma.conversation.findUnique({
@@ -94,17 +96,7 @@ export interface CreateMessageInput {
 /** Create a message. Returns null if user is not a participant or cannot chat with the other. */
 export async function createMessage(input: CreateMessageInput) {
   const { conversationId, senderId, content, type, attachments } = input;
-  const ok = await isParticipant(conversationId, senderId);
-  if (!ok) return null;
-  const conv = await prisma.conversation.findUnique({
-    where: { id: conversationId },
-    select: { user1Id: true, user2Id: true },
-  });
-  if (!conv) return null;
-  const otherId = conv.user1Id === senderId ? conv.user2Id : conv.user1Id;
-  const allowed = await canChatWith(senderId, otherId);
-  if (!allowed) return null;
-
+  if (!(await canSendOrSignal(conversationId, senderId))) return null;
   const message = await prisma.chatMessage.create({
     data: {
       conversationId,
