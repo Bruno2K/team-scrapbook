@@ -2,7 +2,11 @@ import type { ChatMessageType } from "@prisma/client";
 import { prisma } from "../db/client.js";
 import { friendPair } from "./userService.js";
 import { canChat } from "../modules/relationships/index.js";
-import { canSendOrSignal } from "../modules/messaging/index.js";
+import {
+  sendMessage as sendMessageCommand,
+  type SendMessageInput,
+  type SendMessageOptions,
+} from "../modules/messaging/index.js";
 import { generateReply, isGeminiConfigured } from "./geminiService.js";
 
 /** Get or create a conversation between the current user and another. Fails if not friends. */
@@ -85,35 +89,16 @@ export async function getMessages(
   return { messages: list.reverse(), hasMore };
 }
 
-export interface CreateMessageInput {
-  conversationId: string;
-  senderId: string;
-  content?: string | null;
+export interface CreateMessageInput extends SendMessageInput {
   type: ChatMessageType;
-  attachments?: Array<{ url: string; type: string; filename?: string }> | null;
 }
 
 /** Create a message. Returns null if user is not a participant or cannot chat with the other. */
-export async function createMessage(input: CreateMessageInput) {
-  const { conversationId, senderId, content, type, attachments } = input;
-  if (!(await canSendOrSignal(conversationId, senderId))) return null;
-  const message = await prisma.chatMessage.create({
-    data: {
-      conversationId,
-      senderId,
-      content: content ?? null,
-      type,
-      attachments: attachments ?? undefined,
-    },
-    include: {
-      sender: { select: { id: true, nickname: true, name: true, avatar: true, online: true, isAiManaged: true } },
-    },
-  });
-  await prisma.conversation.update({
-    where: { id: conversationId },
-    data: { updatedAt: new Date() },
-  });
-  return message;
+export function createMessage(
+  input: CreateMessageInput,
+  options: SendMessageOptions = {},
+) {
+  return sendMessageCommand(input, options);
 }
 
 const AI_REPLY_HISTORY_LIMIT = 20;
@@ -126,7 +111,7 @@ export async function triggerAiReplyIfNeeded(
   conversationId: string,
   humanUserId: string,
   recipientId: string
-): Promise<Awaited<ReturnType<typeof createMessage>> | null> {
+) {
   if (!isGeminiConfigured()) return null;
   const recipient = await prisma.user.findUnique({
     where: { id: recipientId },
@@ -156,12 +141,12 @@ export async function triggerAiReplyIfNeeded(
   );
   if (!reply) return null;
 
-  const aiMessage = await createMessage({
+  const outcome = await createMessage({
     conversationId,
     senderId: recipientId,
     content: reply.content,
     type: "TEXT",
     attachments: reply.attachments,
   });
-  return aiMessage;
+  return outcome?.message ?? null;
 }

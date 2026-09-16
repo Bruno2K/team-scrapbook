@@ -57,14 +57,18 @@ export interface SendMessageBody {
   content?: string | null;
   type?: SendMessageType;
   attachments?: Attachment[];
+  /** Retain this value when retrying the same logical HTTP send attempt. */
+  idempotencyKey?: string;
 }
 
 export async function sendMessage(body: SendMessageBody): Promise<ChatMessage | null> {
   if (!isApiConfigured() || !getStoredToken()) return null;
   try {
+    const { idempotencyKey = crypto.randomUUID(), ...payload } = body;
     return await apiRequest<ChatMessage>("/chat/messages", {
       method: "POST",
-      body: JSON.stringify(body),
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(payload),
     });
   } catch {
     return null;

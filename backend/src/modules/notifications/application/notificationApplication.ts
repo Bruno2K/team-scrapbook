@@ -15,7 +15,10 @@ export interface NotificationRecord {
 }
 
 export interface NotificationRepository {
-  create(input: CreateNotificationInput): Promise<NotificationRecord>;
+  create(input: CreateNotificationInput): Promise<{
+    notification: NotificationRecord;
+    created: boolean;
+  }>;
   listForUser(options: ListNotificationsOptions): Promise<NotificationRecord[]>;
   markRead(userId: string, notificationId: string): Promise<{ count: number }>;
   markAllRead(userId: string): Promise<{ count: number }>;
@@ -64,8 +67,8 @@ export function createNotificationApplication(
 
   return {
     async create(input) {
-      const notification = await repository.create(input);
-      if (delivery) {
+      const { notification, created } = await repository.create(input);
+      if (created && delivery) {
         try {
           delivery(notificationToJSON(notification));
         } catch {

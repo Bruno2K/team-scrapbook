@@ -1,4 +1,4 @@
-import type { Conversation, ChatMessage as PrismaChatMessage, User } from "@prisma/client";
+import type { Conversation, User } from "@prisma/client";
 
 export interface ChatUserJSON {
   id: string;
@@ -92,7 +92,13 @@ export function conversationToJSON(
   };
 }
 
-type MessageWithSender = PrismaChatMessage & {
+type MessageWithSender = {
+  id: string;
+  conversationId: string;
+  content: string | null;
+  type: string;
+  attachments: unknown;
+  createdAt: Date;
   sender: UserSelect;
 };
 

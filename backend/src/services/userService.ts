@@ -1,6 +1,12 @@
 import { prisma } from "../db/client.js";
 import { createNotification } from "../modules/notifications/index.js";
-import { isInteractionBlocked } from "../modules/relationships/index.js";
+import {
+  acceptFriendRequest as acceptFriendRequestCommand,
+  blockUser as blockUserCommand,
+  requestFriendship,
+  type AcceptFriendRequestResult,
+  type BlockUserResult,
+} from "../modules/relationships/index.js";
 
 export function friendPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a];
@@ -135,50 +141,26 @@ export async function listRecommendedToAdd(userId: string, limit = 50) {
   return users;
 }
 
-export async function addFriend(meId: string, otherId: string): Promise<"added" | "request_sent" | "already_friends" | "blocked" | "invalid"> {
-  if (meId === otherId) return "invalid";
-  const [u1, u2] = friendPair(meId, otherId);
-  const existingFriendship = await prisma.friendship.findUnique({
-    where: { user1Id_user2Id: { user1Id: u1, user2Id: u2 } },
-  });
-  if (existingFriendship) return "already_friends";
-  const blocked = await prisma.blockedUser.findFirst({
-    where: {
-      OR: [
-        { blockerId: meId, blockedId: otherId },
-        { blockerId: otherId, blockedId: meId },
-      ],
-    },
-  });
-  if (blocked) return "blocked";
-  const existingRequest = await prisma.friendshipRequest.findUnique({
-    where: { fromUserId_toUserId: { fromUserId: meId, toUserId: otherId } },
-  });
-  if (existingRequest) {
-    if (existingRequest.status === "PENDING") return "already_friends"; // already sent, treat as idempotent
-    if (existingRequest.status === "ACCEPTED") return "already_friends";
-    if (existingRequest.status === "DECLINED") {
-      await prisma.friendshipRequest.update({
-        where: { id: existingRequest.id },
-        data: { status: "PENDING", respondedAt: null },
-      });
+export async function addFriend(meId: string, otherId: string): Promise<
+  "added" | "request_sent" | "already_friends" | "blocked" | "invalid" | "conflict"
+> {
+  const result = await requestFriendship(meId, otherId);
+  if (result.status === "request_created" || result.status === "request_reactivated") {
+    try {
       await createNotification({
         userId: otherId,
         type: "FRIEND_REQUEST",
-        payload: { requestId: existingRequest.id },
+        payload: { requestId: result.requestId },
       });
-      return "request_sent";
+    } catch {
+      // The relationship request is committed; notification persistence is post-commit best effort.
     }
+    return "request_sent";
   }
-  const request = await prisma.friendshipRequest.create({
-    data: { fromUserId: meId, toUserId: otherId, status: "PENDING" },
-  });
-  await createNotification({
-    userId: otherId,
-    type: "FRIEND_REQUEST",
-    payload: { requestId: request.id },
-  });
-  return "request_sent";
+  if (result.status === "already_pending" || result.status === "already_friends") {
+    return "already_friends";
+  }
+  return result.status;
 }
 
 export async function listPendingFriendRequestsForUser(userId: string) {
@@ -189,23 +171,11 @@ export async function listPendingFriendRequestsForUser(userId: string) {
   });
 }
 
-export async function acceptFriendRequest(requestId: string, userId: string): Promise<boolean> {
-  const request = await prisma.friendshipRequest.findUnique({
-    where: { id: requestId },
-  });
-  if (!request || request.toUserId !== userId || request.status !== "PENDING") return false;
-  if (await isInteractionBlocked(request.fromUserId, request.toUserId)) return false;
-  const [u1, u2] = friendPair(request.fromUserId, request.toUserId);
-  await prisma.$transaction([
-    prisma.friendship.create({
-      data: { user1Id: u1, user2Id: u2 },
-    }),
-    prisma.friendshipRequest.update({
-      where: { id: requestId },
-      data: { status: "ACCEPTED", respondedAt: new Date() },
-    }),
-  ]);
-  return true;
+export function acceptFriendRequest(
+  requestId: string,
+  userId: string,
+): Promise<AcceptFriendRequestResult> {
+  return acceptFriendRequestCommand(requestId, userId);
 }
 
 export async function declineFriendRequest(requestId: string, userId: string): Promise<boolean> {
@@ -228,34 +198,8 @@ export async function removeFriend(meId: string, otherId: string): Promise<boole
   return deleted.count > 0;
 }
 
-export async function blockUser(blockerId: string, blockedId: string): Promise<boolean> {
-  if (blockerId === blockedId) return false;
-  await prisma.$transaction([
-    prisma.friendship.deleteMany({
-      where: {
-        OR: [
-          { user1Id: blockerId, user2Id: blockedId },
-          { user1Id: blockedId, user2Id: blockerId },
-        ],
-      },
-    }),
-    prisma.friendshipRequest.deleteMany({
-      where: {
-        OR: [
-          { fromUserId: blockerId, toUserId: blockedId },
-          { fromUserId: blockedId, toUserId: blockerId },
-        ],
-      },
-    }),
-    prisma.blockedUser.upsert({
-      where: {
-        blockerId_blockedId: { blockerId, blockedId },
-      },
-      create: { blockerId, blockedId },
-      update: {},
-    }),
-  ]);
-  return true;
+export function blockUser(blockerId: string, blockedId: string): Promise<BlockUserResult> {
+  return blockUserCommand(blockerId, blockedId);
 }
 
 export async function unblockUser(blockerId: string, blockedId: string): Promise<boolean> {

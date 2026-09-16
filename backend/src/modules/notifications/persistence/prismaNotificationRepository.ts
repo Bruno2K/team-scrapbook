@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/client.js";
+import { hasPrismaCode } from "../../../db/transactions.js";
 import type {
   ListNotificationsOptions,
   NotificationRecord,
@@ -8,14 +9,26 @@ import type {
 import type { CreateNotificationInput, NotificationType } from "../contracts.js";
 
 export const prismaNotificationRepository: NotificationRepository = {
-  create(input: CreateNotificationInput): Promise<NotificationRecord> {
-    return prisma.notification.create({
-      data: {
-        userId: input.userId,
-        type: input.type,
-        payload: input.payload as Prisma.InputJsonValue,
-      },
-    });
+  async create(input: CreateNotificationInput) {
+    try {
+      const notification = await prisma.notification.create({
+        data: {
+          userId: input.userId,
+          type: input.type,
+          payload: input.payload as Prisma.InputJsonValue,
+          dedupeKey: input.dedupeKey,
+        },
+      });
+      return { notification, created: true };
+    } catch (error) {
+      if (input.dedupeKey && hasPrismaCode(error, "P2002")) {
+        const notification = await prisma.notification.findUnique({
+          where: { dedupeKey: input.dedupeKey },
+        });
+        if (notification) return { notification, created: false };
+      }
+      throw error;
+    }
   },
 
   listForUser(options: ListNotificationsOptions): Promise<NotificationRecord[]> {

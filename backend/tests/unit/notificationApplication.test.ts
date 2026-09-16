@@ -17,7 +17,7 @@ const notification: NotificationRecord = {
 
 function createRepositoryMock(): NotificationRepository {
   return {
-    create: vi.fn().mockResolvedValue(notification),
+    create: vi.fn().mockResolvedValue({ notification, created: true }),
     listForUser: vi.fn().mockResolvedValue([]),
     markRead: vi.fn().mockResolvedValue({ count: 1 }),
     markAllRead: vi.fn().mockResolvedValue({ count: 1 }),
@@ -72,6 +72,21 @@ describe("notification application", () => {
         payload: { requestId: "request-1" },
       })
     ).resolves.toEqual(notification);
+  });
+
+  it("does not redeliver a deduplicated durable notification", async () => {
+    vi.mocked(repository.create).mockResolvedValue({ notification, created: false });
+    const application = createNotificationApplication(repository);
+    const delivery = vi.fn();
+    application.setDelivery(delivery);
+
+    await expect(application.create({
+      userId: "user-1",
+      type: "FRIEND_REQUEST",
+      payload: { requestId: "request-1" },
+      dedupeKey: "friend-request:request-1",
+    })).resolves.toEqual(notification);
+    expect(delivery).not.toHaveBeenCalled();
   });
 
   it("preserves cursor pagination by requesting one extra item", async () => {
