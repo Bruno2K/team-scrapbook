@@ -12,6 +12,11 @@ import {
   logReady,
   logStartup,
 } from "./platform/observability/index.js";
+import {
+  createOutboxWorker,
+  isEmbeddedOutboxWorkerEnabled,
+} from "./platform/outbox/index.js";
+import { registerProductOutboxConsumers } from "./registerOutboxConsumers.js";
 import { setupSocket } from "./socket.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -25,11 +30,17 @@ export async function startApplication(): Promise<http.Server> {
   setNotificationDelivery((notification) => {
     io.to("user:" + notification.userId).emit("notification", notification);
   });
+  registerProductOutboxConsumers();
+  const worker = isEmbeddedOutboxWorkerEnabled()
+    ? createOutboxWorker({ db: prisma })
+    : undefined;
+  worker?.start();
 
   installProcessSignalHandlers(
     {
       httpServer,
       io,
+      stopWorkers: worker ? () => worker.stop() : undefined,
       disconnectDatabase: () => prisma.$disconnect(),
     },
     { exit: (code) => process.exit(code) },

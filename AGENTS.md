@@ -14,6 +14,7 @@ Use this file as the operational entry point for repository work. Read the ownin
 - Known defects, gaps, and risks: [`docs/technical-debt/repository-baseline.md`](docs/technical-debt/repository-baseline.md).
 - Backend module ownership and dependency rules: [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md). Cross-module imports must use `backend/src/modules/<module>/index.ts`; run the architecture check when backend boundaries change.
 - Observability, health/readiness, SLOs, and lifecycle: [`docs/operations/observability.md`](docs/operations/observability.md).
+- Durable async processing: [`docs/architecture/transactional-outbox.md`](docs/architecture/transactional-outbox.md) and [`docs/operations/outbox-worker.md`](docs/operations/outbox-worker.md).
 
 ## Source-of-truth hierarchy
 

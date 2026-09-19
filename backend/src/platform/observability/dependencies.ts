@@ -11,6 +11,7 @@ export type FailureCategory =
   | "rate_limited"
   | "not_configured"
   | "conflict"
+  | "poison"
   | "unknown";
 
 export function classifyHttpFailure(status: number): FailureCategory {

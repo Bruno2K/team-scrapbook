@@ -6,8 +6,9 @@ import { getReleaseIdentity, sanitizedRuntimeConfig } from "./release.js";
 export const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 export interface ManagedProcess {
-  httpServer: http.Server;
-  io: SocketServer;
+  httpServer?: http.Server;
+  io?: Pick<SocketServer, "close">;
+  stopWorkers?: () => Promise<void>;
   disconnectDatabase: () => Promise<void>;
 }
 
@@ -47,7 +48,7 @@ function closeHttpServer(server: http.Server): Promise<void> {
   });
 }
 
-function closeSockets(io: SocketServer): Promise<void> {
+function closeSockets(io: Pick<SocketServer, "close">): Promise<void> {
   return new Promise((resolve) => {
     io.close(() => resolve());
   });
@@ -72,11 +73,18 @@ export async function shutdownProcess(managed: ManagedProcess, options: Shutdown
 
   let reachedDatabase = false;
   const work = (async () => {
-    if (typeof managed.httpServer.closeAllConnections === "function") {
+    if (managed.stopWorkers) {
+      await managed.stopWorkers();
+    }
+    if (managed.httpServer && typeof managed.httpServer.closeAllConnections === "function") {
       managed.httpServer.closeAllConnections();
     }
-    await closeSockets(managed.io);
-    await closeHttpServer(managed.httpServer);
+    if (managed.io) {
+      await closeSockets(managed.io);
+    }
+    if (managed.httpServer) {
+      await closeHttpServer(managed.httpServer);
+    }
     reachedDatabase = true;
     await disconnectSafely(managed.disconnectDatabase);
   })();

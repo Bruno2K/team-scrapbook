@@ -103,7 +103,7 @@ Likely future contracts, created only with an owning use case, include profile s
 - The current single schema and Prisma client remain shared infrastructure. Physical schema location does not grant every module write ownership.
 - A future transaction involving one module is orchestrated by that module's application use case.
 - A future transaction involving multiple modules belongs to the application workflow that owns the invariant. Participating modules must expose transaction-aware persistence operations or an explicit coordinated contract; the workflow must not reimplement their policies with raw Prisma calls.
-- Exact transaction propagation, retry, and idempotency semantics are intentionally deferred to the later milestone issue.
+- Exact transaction propagation, retry, and idempotency semantics for *business* mutations are defined in Issue #34. Durable post-commit work uses the PostgreSQL outbox in [`transactional-outbox.md`](./transactional-outbox.md); that primitive is not a generic module event bus.
 
 ## Realtime boundary
 

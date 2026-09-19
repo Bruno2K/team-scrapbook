@@ -9,7 +9,6 @@ import {
   triggerAiReplyIfNeeded,
 } from "../services/chatService.js";
 import { conversationToJSON, chatMessageToJSON } from "../views/chatView.js";
-import { createNotification } from "../modules/notifications/index.js";
 import {
   getOtherParticipant,
   MessageIdempotencyConflictError,
@@ -104,15 +103,6 @@ export async function postMessage(req: Request, res: Response) {
       type,
       attachments: attachments?.length ? attachments : undefined,
       idempotencyKey: idempotencyKey ?? undefined,
-    }, {
-      afterCommit: recipientId
-        ? async (message) => createNotification({
-          userId: recipientId,
-          type: "CHAT_MESSAGE",
-          payload: { conversationId, messageId: message.id },
-          dedupeKey: `chat-message:${message.id}`,
-        })
-        : undefined,
     });
     if (!outcome) {
       res.status(403).json({ message: "Não é possível enviar mensagem nesta conversa" });

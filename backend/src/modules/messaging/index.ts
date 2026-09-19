@@ -15,6 +15,11 @@ export const sendMessage = messages.send;
 export {
   MessageIdempotencyConflictError,
 } from "./application/messageApplication.js";
+export {
+  parseChatMessageCreatedPayload,
+  MESSAGE_CREATED_EVENT_TYPE,
+  MESSAGE_CREATED_EVENT_VERSION,
+} from "./domain/chatMessageCreated.js";
 export type {
   MessageAttachment,
   MessageRecord,

@@ -1,6 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../db/client.js";
 import { hasPrismaCode } from "../../../db/transactions.js";
+import { appendOutboxEvent } from "../../../platform/outbox/store.js";
+import { chatMessageCreatedOutbox } from "../domain/chatMessageCreated.js";
 import {
   MessageIdempotencyConflictError,
   type MessagePersistenceOutcome,
@@ -88,6 +90,22 @@ export function createPrismaMessageRepository(
               }),
             );
             await hooks.afterMessageCreated({ messageVisibleInsideTransaction: visible });
+          }
+
+          const conversation = await tx.conversation.findUnique({
+            where: { id: input.conversationId },
+            select: { user1Id: true, user2Id: true },
+          });
+          const recipientId = conversation
+            ? (conversation.user1Id === input.senderId ? conversation.user2Id : conversation.user1Id)
+            : null;
+          if (input.notifyRecipient && recipientId) {
+            await appendOutboxEvent(tx, chatMessageCreatedOutbox({
+              messageId: message.id,
+              conversationId: input.conversationId,
+              senderId: input.senderId,
+              recipientId,
+            }));
           }
 
           await tx.conversation.update({

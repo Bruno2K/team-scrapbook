@@ -10,3 +10,5 @@ Production backend configuration:
 - Public port: `3000`
 
 The PostgreSQL service must be available before deployment and `DATABASE_URL` must point to the production PostgreSQL database. Prisma migrations are applied during pre-deploy; do not replace this with `prisma migrate resolve` except as a one-time recovery step for a known failed migration.
+
+A dedicated outbox worker (`npm run start:worker`) is recommended as a second Railway service using the same `/backend` image. Creating or changing that production service is a human gate. See [`docs/operations/outbox-worker.md`](../docs/operations/outbox-worker.md). Until it exists, the API embeds the poller unless `OUTBOX_WORKER_ENABLED=false`.
