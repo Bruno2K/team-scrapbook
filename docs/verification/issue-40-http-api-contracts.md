@@ -13,7 +13,8 @@
 - `npm run build` (backend): pass
 - `npm run db:generate`: run as part of the backend verification sequence
 - PostgreSQL integration: **not run locally** — Docker Desktop engine was unavailable (`dockerDesktopLinuxEngine` pipe missing). Rely on the CI job **PostgreSQL migrations and integration**.
-- Frontend `lint`: 0 errors, 17 warnings (existing react-refresh/hooks warnings; no new files under `src/`)
+- Frontend `PostFeedInput.type` aligned to `"post" | "achievement"` to match `POST /feed` runtime Zod (no active caller sent `"community"` or `"scrap"`)
+- Frontend `lint`: 0 errors, 17 warnings (existing react-refresh/hooks warnings)
 - Frontend `typecheck`: pass
 - Frontend `test:ci`: pass (7 vitest + 4 smoke)
 - Frontend `build`: pass
@@ -29,4 +30,3 @@
 - Socket.io event contracts
 - Nested serialized view field-completeness
 - Typed frontend error taxonomy
-- Frontend `PostFeedInput.type` still allows `"community" | "scrap"` while runtime Zod accepts `"post" | "achievement"` only (path/method compatible; extra type values would 400)
