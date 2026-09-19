@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { log, recordTransactionConflict, recordTransactionRetry } from "../platform/observability/index.js";
 import { prisma } from "./client.js";
 
 const SERIALIZABLE_ATTEMPTS = 3;
@@ -30,7 +31,23 @@ export async function runSerializableTransaction<T>(
     } catch (error) {
       if (!hasPrismaCode(error, "P2034")) throw error;
       lastConflict = error;
+      recordTransactionRetry();
+      log.warn({
+        event: "db.transaction.retry",
+        dependency: "postgresql",
+        retry: true,
+        retryClassification: "conflict",
+        failureCategory: "conflict",
+      });
     }
   }
+  recordTransactionConflict();
+  log.warn({
+    event: "db.transaction.conflict",
+    dependency: "postgresql",
+    outcome: "failure",
+    failureCategory: "conflict",
+    retryClassification: "exhausted",
+  });
   throw new TransactionConflictError({ cause: lastConflict });
 }

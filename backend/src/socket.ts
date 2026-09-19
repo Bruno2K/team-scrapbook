@@ -7,6 +7,13 @@ import { prisma } from "./db/client.js";
 import { resolveAccessToken, type AuthenticatedActor } from "./modules/identity/index.js";
 import { canSendOrSignal, getOtherParticipant, sendMessageSchema } from "./modules/messaging/index.js";
 import { messageLimiter } from "./middleware/abuseControls.js";
+import {
+  observeSocketAccepted,
+  observeSocketDisconnect,
+  observeSocketPolicyFailure,
+  observeSocketRejected,
+  setSocketCountProvider,
+} from "./platform/observability/index.js";
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "http://localhost:8080";
 
@@ -28,15 +35,19 @@ export function setupSocket(httpServer: HttpServer): Server {
     },
   });
 
+  setSocketCountProvider(() => io.engine.clientsCount);
+
   io.on("connection", async (socket: Socket) => {
     const actor = await authenticateSocketToken(socket.handshake.auth?.token);
     if (!actor) {
+      observeSocketRejected(socket.id);
       socket.disconnect(true);
       return;
     }
     const userId = actor.id;
     socket.data.userId = userId;
     socket.join(`user:${userId}`);
+    observeSocketAccepted(socket.id);
 
     prisma.user
       .update({ where: { id: userId }, data: { online: true } })
@@ -45,11 +56,13 @@ export function setupSocket(httpServer: HttpServer): Server {
     socket.on("message", async (payload: unknown) => {
       const rateLimit = messageLimiter.consume(userId);
       if (!rateLimit.allowed) {
+        observeSocketPolicyFailure(socket.id, "message", "RATE_LIMITED");
         socket.emit("security:error", { code: "RATE_LIMITED", retryAfter: rateLimit.retryAfterSeconds });
         return;
       }
       const parsed = sendMessageSchema.safeParse(payload);
       if (!parsed.success) {
+        observeSocketPolicyFailure(socket.id, "message", "INVALID_MESSAGE");
         socket.emit("security:error", { code: "INVALID_MESSAGE" });
         return;
       }
@@ -72,6 +85,7 @@ export function setupSocket(httpServer: HttpServer): Server {
           : undefined,
       });
       if (!outcome) {
+        observeSocketPolicyFailure(socket.id, "message", "FORBIDDEN");
         socket.emit("security:error", { code: "FORBIDDEN" });
         return;
       }
@@ -101,7 +115,8 @@ export function setupSocket(httpServer: HttpServer): Server {
       }
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
+      observeSocketDisconnect(socket.id, reason);
       prisma.user
         .update({ where: { id: userId }, data: { online: false } })
         .catch(() => {});

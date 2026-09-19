@@ -1,8 +1,7 @@
+import { getReleaseIdentity } from "../platform/observability/index.js";
+
 function releaseMetadata() {
-  return {
-    gitSha: process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.GIT_SHA ?? null,
-    deploymentId: process.env.RAILWAY_DEPLOYMENT_ID ?? null,
-  };
+  return getReleaseIdentity();
 }
 
 export function healthToJSON() {

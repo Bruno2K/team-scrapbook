@@ -1,4 +1,5 @@
 import { prisma } from "../db/client.js";
+import { log } from "../platform/observability/index.js";
 import {
   getOwnedGames,
   getPlayerAchievements,
@@ -58,11 +59,13 @@ export async function syncSteamDataForUser(userId: string): Promise<{ gamesCount
   }
 
   const ownedAppIds = games.map((g) => g.appid);
-  console.log(`[Steam Sync] Starting sync for ${ownedAppIds.length} games`);
+  log.info({
+    event: "steam.sync.started",
+    outcome: "success",
+  });
   
   for (let i = 0; i < ownedAppIds.length; i++) {
     const appId = ownedAppIds[i];
-    const gameName = games.find((g) => g.appid === appId)?.name ?? `App ${appId}`;
     
     // Small delay to avoid rate limiting (except for first request)
     if (i > 0) {
@@ -78,13 +81,23 @@ export async function syncSteamDataForUser(userId: string): Promise<{ gamesCount
       ]);
     } catch (err) {
       // Many games don't have achievements or API may fail - skip silently
-      console.log(`[Steam Sync] Skipping ${gameName} (${appId}): API error`);
+      log.warn({
+        event: "steam.sync.game_skipped",
+        dependency: "steam",
+        outcome: "failure",
+        failureCategory: "unknown",
+      });
       continue;
     }
 
     // Skip if no achievements found
     if (!playerAchs || playerAchs.length === 0) {
-      console.log(`[Steam Sync] Skipping ${gameName} (${appId}): No achievements`);
+      log.info({
+        event: "steam.sync.game_skipped",
+        dependency: "steam",
+        outcome: "success",
+        failureCategory: "none",
+      });
       continue;
     }
 
@@ -116,11 +129,11 @@ export async function syncSteamDataForUser(userId: string): Promise<{ gamesCount
       });
     }
     
-    if (unlockedCount > 0) {
-      console.log(`[Steam Sync] ${gameName} (${appId}): ${unlockedCount}/${totalCount} achievements unlocked`);
-    } else {
-      console.log(`[Steam Sync] ${gameName} (${appId}): ${totalCount} achievements total, none unlocked`);
-    }
+    log.info({
+      event: "steam.sync.game_completed",
+      dependency: "steam",
+      outcome: "success",
+    });
   }
 
   // Atualizar nível do perfil com o nível da Steam

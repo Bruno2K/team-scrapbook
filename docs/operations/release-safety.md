@@ -60,7 +60,10 @@ The command exits non-zero unless all required assertions pass:
 `/health` remains process health. `/health/ready` is PostgreSQL readiness only. Neither endpoint
 claims Steam, Gemini, R2, Giphy, product-data correctness, or full user-journey health. The readiness
 query reads no product row, returns no database detail on failure, and is coalesced/cached for five
-seconds per process to bound database-pool load. Fetching the entry module does not prove browser
+seconds per process to bound database-pool load. A 1.5s probe timeout (override `READINESS_TIMEOUT_MS`)
+classifies hung PostgreSQL as not ready. Structured logs, `/metrics`, and lifecycle events are
+documented in [`observability.md`](observability.md); SLOs in [`slo.md`](slo.md); Railway triage in
+[`railway-production-note.md`](railway-production-note.md). Fetching the entry module does not prove browser
 execution or detect every client-side runtime error; browser E2E remains outside Issue #28.
 
 Use `npm run smoke:test` for controlled healthy and failure-path proof. Never cause a production

@@ -13,11 +13,23 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import aiActionsRoutes from "./routes/aiActionsRoutes.js";
 import { notificationRoutes } from "./modules/notifications/index.js";
+import {
+  correlationMiddleware,
+  httpObservabilityMiddleware,
+  metricsHandler,
+  unhandledErrorMiddleware,
+} from "./platform/observability/index.js";
 
 const app = express();
 
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? "http://localhost:8080" }));
+app.use(correlationMiddleware);
+app.use(httpObservabilityMiddleware);
+app.use(cors({
+  origin: process.env.CORS_ORIGIN ?? "http://localhost:8080",
+  exposedHeaders: ["X-Request-Id"],
+}));
 app.use(express.json());
+app.get("/metrics", metricsHandler);
 
 // Swagger / OpenAPI
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(openApiSpec));
@@ -37,5 +49,6 @@ app.use("/communities", communityRoutes);
 app.use("/upload", uploadRoutes);
 app.use("/chat", chatRoutes);
 app.use("/ai-actions", aiActionsRoutes);
+app.use(unhandledErrorMiddleware);
 
 export default app;

@@ -13,6 +13,7 @@ Use this file as the operational entry point for repository work. Read the ownin
 - Local/deployment commands and verified behavior: [`docs/operations/repository-baseline.md`](docs/operations/repository-baseline.md).
 - Known defects, gaps, and risks: [`docs/technical-debt/repository-baseline.md`](docs/technical-debt/repository-baseline.md).
 - Backend module ownership and dependency rules: [`docs/architecture/modular-monolith.md`](docs/architecture/modular-monolith.md). Cross-module imports must use `backend/src/modules/<module>/index.ts`; run the architecture check when backend boundaries change.
+- Observability, health/readiness, SLOs, and lifecycle: [`docs/operations/observability.md`](docs/operations/observability.md).
 
 ## Source-of-truth hierarchy
 
