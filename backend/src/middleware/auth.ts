@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { resolveAccessToken } from "../modules/identity/index.js";
+import { log } from "../platform/observability/index.js";
 
 function attachActor(req: Request, actor: NonNullable<Request["actor"]>): void {
   req.actor = actor;
@@ -8,6 +9,7 @@ function attachActor(req: Request, actor: NonNullable<Request["actor"]>): void {
 export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
+    log.warn({ event: "auth.rejected", requestId: req.correlationId, status: 401, failureCategory: "unknown" });
     res.status(401).json({ message: "Token não informado" });
     return;
   }
@@ -16,12 +18,14 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   try {
     const actor = await resolveAccessToken(token);
     if (!actor || actor.isAiManaged) {
+      log.warn({ event: "auth.rejected", requestId: req.correlationId, status: 401, failureCategory: "unknown" });
       res.status(401).json({ message: "Token inválido ou expirado" });
       return;
     }
     attachActor(req, actor);
     next();
   } catch {
+    log.warn({ event: "auth.rejected", requestId: req.correlationId, status: 401, failureCategory: "unknown" });
     res.status(401).json({ message: "Token inválido ou expirado" });
   }
 }

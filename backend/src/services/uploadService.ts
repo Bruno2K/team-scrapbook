@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
+import { classifyHttpFailure, classifyUnknownFailure, observeDependency } from "../platform/observability/index.js";
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
@@ -113,7 +114,7 @@ export async function getPresignedUploadUrl(
   });
 
   const expiresIn = 3600;
-  const uploadUrl = await getSignedUrl(client, command, { expiresIn });
+  const uploadUrl = await observeDependency("r2", () => getSignedUrl(client, command, { expiresIn }));
 
   const publicUrl = publicBaseUrl.endsWith("/") ? `${publicBaseUrl}${key}` : `${publicBaseUrl}/${key}`;
 
@@ -131,13 +132,20 @@ export async function uploadBufferToPresignedUrl(
   buffer: Buffer,
   contentType: string
 ): Promise<void> {
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    body: buffer,
-    headers: { "Content-Type": contentType },
+  await observeDependency("r2", async () => {
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      body: buffer,
+      headers: { "Content-Type": contentType },
+    });
+    if (!res.ok) {
+      throw Object.assign(new Error("R2 upload failed"), { status: res.status });
+    }
+  }, (error) => {
+    const status = typeof error === "object" && error !== null && "status" in error
+      ? Number((error as { status?: number }).status)
+      : NaN;
+    if (Number.isFinite(status)) return classifyHttpFailure(status);
+    return classifyUnknownFailure(error);
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`R2 upload failed: ${res.status} ${text}`);
-  }
 }

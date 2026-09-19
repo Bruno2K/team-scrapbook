@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import request from "supertest";
+import { resetReadinessCache } from "../../src/platform/observability/index.js";
 
 const mocks = vi.hoisted(() => ({ queryRaw: vi.fn() }));
 
@@ -10,6 +11,11 @@ vi.mock("../../src/db/client", () => ({
 import app from "../../src/app";
 
 describe("GET /health/ready failure", () => {
+  beforeEach(() => {
+    resetReadinessCache();
+    mocks.queryRaw.mockReset();
+  });
+
   it("returns a detail-free 503 and coalesces concurrent database failures", async () => {
     mocks.queryRaw.mockRejectedValueOnce(new Error("database details must not escape"));
 

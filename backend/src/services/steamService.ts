@@ -3,6 +3,8 @@
  * Requires STEAM_WEB_API_KEY. Base: https://api.steampowered.com/
  */
 
+import { classifyHttpFailure, classifyUnknownFailure, observeDependency } from "../platform/observability/index.js";
+
 const STEAM_API_BASE = "https://api.steampowered.com";
 
 function getApiKey(): string {
@@ -14,14 +16,23 @@ function getApiKey(): string {
 }
 
 async function steamFetch<T>(path: string, params: Record<string, string> = {}): Promise<T> {
-  const key = getApiKey();
-  const search = new URLSearchParams({ key, ...params });
-  const url = `${STEAM_API_BASE}${path}?${search.toString()}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Steam API error: ${res.status} ${res.statusText}`);
-  }
-  return res.json() as Promise<T>;
+  return observeDependency("steam", async () => {
+    const key = getApiKey();
+    const search = new URLSearchParams({ key, ...params });
+    const url = `${STEAM_API_BASE}${path}?${search.toString()}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const error = Object.assign(new Error("Steam API request failed"), { status: res.status });
+      throw error;
+    }
+    return res.json() as Promise<T>;
+  }, (error) => {
+    const status = typeof error === "object" && error !== null && "status" in error
+      ? Number((error as { status?: number }).status)
+      : NaN;
+    if (Number.isFinite(status)) return classifyHttpFailure(status);
+    return classifyUnknownFailure(error);
+  });
 }
 
 // --- ResolveVanityURL ---

@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { TF2Class } from "@prisma/client";
 import { TF2_PERSONALITY_PROMPTS } from "../config/tf2Personalities.js";
+import { classifyUnknownFailure, observeDependency } from "../platform/observability/index.js";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? "";
 // Prefer env override; gemini-1.5-flash is deprecated/renamed in v1beta, use 2.0 or 1.5-pro
@@ -131,20 +132,17 @@ Use responseType "text" or "emoji" for normal replies. Use "audio"/"image"/"gif"
   };
 
   try {
-    return await callGemini();
+    return await observeDependency("gemini", callGemini, (error) => classifyUnknownFailure(error));
   } catch (err) {
     if (is429(err)) {
       const delayMs = getRetryDelayMs(err);
-      console.warn(`Gemini rate limit (429), retrying in ${delayMs / 1000}s...`);
       await sleep(delayMs);
       try {
-        return await callGemini();
-      } catch (retryErr) {
-        console.error("Gemini generateReply still failed after retry (quota/rate limit). Check https://ai.google.dev/gemini-api/docs/rate-limits");
+        return await observeDependency("gemini", callGemini, (error) => classifyUnknownFailure(error));
+      } catch {
         return null;
       }
     }
-    console.error("Gemini generateReply error:", err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -194,14 +192,13 @@ Respond with ONLY the message text, no quotes, no JSON, no explanation. One line
   });
 
   try {
-    const result = await model.generateContent({
+    const result = await observeDependency("gemini", () => model.generateContent({
       contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }],
-    });
+    }));
     const text = result.response.text();
     const trimmed = text?.trim();
     return trimmed && trimmed.length > 0 ? trimmed.slice(0, 500) : "…";
-  } catch (err) {
-    console.error("Gemini generateActionContent error:", err instanceof Error ? err.message : err);
+  } catch {
     return actionType === "scrap" ? "Recado em personagem" : actionType === "post" ? "Post em personagem" : "Comentário.";
   }
 }

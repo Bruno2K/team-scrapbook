@@ -22,11 +22,29 @@ export const openApiSpec = {
     { name: "Communities", description: "Comunidades" },
   ],
   paths: {
+    "/metrics": {
+      get: {
+        tags: ["Health"],
+        summary: "Process-local operational metrics",
+        description:
+          "Prometheus text exposition of this process only. Labels are bounded route templates and status classes. Request IDs and user identifiers are never used as labels.",
+        responses: {
+          "200": {
+            description: "Prometheus text format",
+            content: {
+              "text/plain": {
+                schema: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
     "/health": {
       get: {
         tags: ["Health"],
-        summary: "Health check",
-        description: "Retorna o status do serviço e timestamp.",
+        summary: "Process liveness",
+        description: "Cheap process liveness only. Does not query PostgreSQL or external providers. Load balancers that need traffic readiness must use /health/ready.",
         responses: {
           "200": {
             description: "Serviço em execução",
@@ -51,7 +69,7 @@ export const openApiSpec = {
       get: {
         tags: ["Health"],
         summary: "Database readiness check",
-        description: "Verifies that the API process can execute a minimal PostgreSQL query. This does not check optional external integrations.",
+        description: "Verifies that this API process can execute a bounded PostgreSQL SELECT 1. This is readiness, not liveness, and does not check Steam, Gemini, R2, or Socket.io.",
         responses: {
           "200": {
             description: "PostgreSQL is reachable",
