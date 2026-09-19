@@ -47,12 +47,13 @@ export interface MessageRepository {
     input: SendMessageInput & { requestFingerprint: string | null },
   ): Promise<MessagePersistenceOutcome | null>;
   persist(
-    input: SendMessageInput & { requestFingerprint: string | null },
+    input: SendMessageInput & { requestFingerprint: string | null; notifyRecipient: boolean },
   ): Promise<MessagePersistenceOutcome>;
 }
 
 export interface SendMessageOptions {
   afterCommit?(message: MessageRecord): Promise<void>;
+  notifyRecipient?: boolean;
 }
 
 export type SendMessageOutcome = MessagePersistenceOutcome & {
@@ -102,7 +103,10 @@ export function createMessageApplication(
         ? await repository.findReplay(persistenceInput)
         : null;
       if (!replay && !(await canSend(input.conversationId, input.senderId))) return null;
-      const persisted = replay ?? await repository.persist(persistenceInput);
+      const persisted = replay ?? await repository.persist({
+        ...persistenceInput,
+        notifyRecipient: options.notifyRecipient !== false,
+      });
 
       let postCommitEffectFailed = false;
       if (options.afterCommit) {

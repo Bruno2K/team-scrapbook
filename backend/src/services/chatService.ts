@@ -147,6 +147,6 @@ export async function triggerAiReplyIfNeeded(
     content: reply.content,
     type: "TEXT",
     attachments: reply.attachments,
-  });
+  }, { notifyRecipient: false });
   return outcome?.message ?? null;
 }

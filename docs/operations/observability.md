@@ -80,8 +80,16 @@ Probe routes (`/health`, `/health/ready`, `/metrics`) log at `debug`.
 | `socket_disconnects_total` | `reason_class` |
 | `socket_policy_failures_total` | `event`, `code` |
 | `socket_connections_active` | none; `io.engine.clientsCount` on this process |
+| `outbox_events_claimed_total` | `event_type` |
+| `outbox_events_completed_total` | `event_type` |
+| `outbox_events_retryable_total` | `event_type`, `failure_category` |
+| `outbox_events_terminal_total` | `event_type`, `failure_category` |
+| `outbox_lease_recovered_total` | `event_type` |
+| `outbox_processing_duration_ms` | `event_type`, `outcome` |
+| `outbox_backlog` | none |
+| `outbox_worker_up` | none |
 
-Forbidden as labels: user id, request id, message/conversation/community id, raw URL, nickname, error message, provider payload.
+`event_type` is allow-listed (`messaging.message.created` or `other`). `failure_category` includes `poison`. Forbidden as labels: user id, request id, message/conversation/community/event/aggregate id, raw URL, nickname, error message, provider payload.
 
 `route` is the Express pattern (`/users/:userId`), never the concrete URL.
 
@@ -90,7 +98,8 @@ Forbidden as labels: user id, request id, message/conversation/community id, raw
 - `/health`: liveness only. Railway or a load balancer can use it to see that the Node process answers.
 - `/health/ready`: PostgreSQL readiness with a 1.5s timeout (overridable via `READINESS_TIMEOUT_MS`), 5s cache, coalesced in-flight probes, no error details.
 - Startup logs sanitized configuration booleans and release identity, then `process.ready` after listen on `0.0.0.0:$PORT`.
-- SIGTERM/SIGINT start a single shutdown: force leftover HTTP connections closed, close Socket.io, close the HTTP server, disconnect Prisma, 10s bound, `process.shutdown.completed` or `process.shutdown.failure`. `/health/ready` returns 503 once shutdown has started.
+- SIGTERM/SIGINT start a single shutdown: stop embedded workers, force leftover HTTP connections closed, close Socket.io, close the HTTP server, disconnect Prisma, 10s bound, `process.shutdown.completed` or `process.shutdown.failure`. `/health/ready` returns 503 once shutdown has started.
+- Dedicated worker lifecycle events: `outbox.worker.startup`, `outbox.worker.ready`, `outbox.worker.shutdown`.
 
 ## Production triage
 

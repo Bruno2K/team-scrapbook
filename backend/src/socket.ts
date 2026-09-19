@@ -1,7 +1,6 @@
 import { Server as HttpServer } from "http";
 import { Server, type Socket } from "socket.io";
 import { createMessage, triggerAiReplyIfNeeded } from "./services/chatService.js";
-import { createNotification } from "./modules/notifications/index.js";
 import { chatMessageToJSON } from "./views/chatView.js";
 import { prisma } from "./db/client.js";
 import { resolveAccessToken, type AuthenticatedActor } from "./modules/identity/index.js";
@@ -74,15 +73,6 @@ export function setupSocket(httpServer: HttpServer): Server {
         content,
         type,
         attachments: attachments.length ? attachments : undefined,
-      }, {
-        afterCommit: recipientId
-          ? async (message) => createNotification({
-            userId: recipientId,
-            type: "CHAT_MESSAGE",
-            payload: { conversationId, messageId: message.id },
-            dedupeKey: `chat-message:${message.id}`,
-          })
-          : undefined,
       });
       if (!outcome) {
         observeSocketPolicyFailure(socket.id, "message", "FORBIDDEN");

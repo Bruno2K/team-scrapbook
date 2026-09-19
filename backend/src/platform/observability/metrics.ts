@@ -11,8 +11,10 @@ const FAILURE_CATEGORIES = new Set([
   "rate_limited",
   "not_configured",
   "conflict",
+  "poison",
   "unknown",
 ]);
+const OUTBOX_EVENT_TYPES = new Set(["messaging.message.created"]);
 const SOCKET_REASON_CLASSES = new Set([
   "client_disconnect",
   "transport",
@@ -236,6 +238,48 @@ const socketConnectionsActive = new Gauge(
   "socket_connections_active",
   "Currently connected Socket.io clients on this process only",
 );
+const outboxEventsClaimedTotal = new Counter(
+  "outbox_events_claimed_total",
+  "Outbox events claimed by this process",
+  ["event_type"],
+);
+const outboxEventsCompletedTotal = new Counter(
+  "outbox_events_completed_total",
+  "Outbox events completed by this process",
+  ["event_type"],
+);
+const outboxEventsRetryableTotal = new Counter(
+  "outbox_events_retryable_total",
+  "Retryable outbox handler failures in this process",
+  ["event_type", "failure_category"],
+);
+const outboxEventsTerminalTotal = new Counter(
+  "outbox_events_terminal_total",
+  "Terminal outbox failures in this process",
+  ["event_type", "failure_category"],
+);
+const outboxLeaseRecoveredTotal = new Counter(
+  "outbox_lease_recovered_total",
+  "Expired outbox leases recovered by this process",
+  ["event_type"],
+);
+const outboxProcessingDurationMs = new Histogram(
+  "outbox_processing_duration_ms",
+  "Outbox handler plus completion update duration in milliseconds",
+  LATENCY_BUCKETS,
+);
+const outboxBacklog = new Gauge(
+  "outbox_backlog",
+  "Incomplete outbox events visible to this process sample",
+);
+const outboxWorkerUp = new Gauge(
+  "outbox_worker_up",
+  "Outbox worker loop running in this process: 1 up, 0 stopped",
+);
+
+function normalizeOutboxEventType(eventType: string): string {
+  return allow(eventType, OUTBOX_EVENT_TYPES, "other");
+}
 
 let socketCountProvider: () => number = () => socketConnectionsActive.get();
 
@@ -315,6 +359,47 @@ export function recordSocketPolicyFailure(event: string, code: string): void {
   });
 }
 
+export function recordOutboxAttempt(eventType: string): void {
+  outboxEventsClaimedTotal.inc({ event_type: normalizeOutboxEventType(eventType) });
+}
+
+export function recordOutboxCompleted(eventType: string): void {
+  outboxEventsCompletedTotal.inc({ event_type: normalizeOutboxEventType(eventType) });
+}
+
+export function recordOutboxRetryableFailure(eventType: string, failureCategory: string): void {
+  outboxEventsRetryableTotal.inc({
+    event_type: normalizeOutboxEventType(eventType),
+    failure_category: allow(failureCategory, FAILURE_CATEGORIES, "unknown"),
+  });
+}
+
+export function recordOutboxTerminalFailure(eventType: string, failureCategory: string): void {
+  outboxEventsTerminalTotal.inc({
+    event_type: normalizeOutboxEventType(eventType),
+    failure_category: allow(failureCategory, FAILURE_CATEGORIES, "unknown"),
+  });
+}
+
+export function recordOutboxLeaseRecovered(eventType: string): void {
+  outboxLeaseRecoveredTotal.inc({ event_type: normalizeOutboxEventType(eventType) });
+}
+
+export function recordOutboxProcessingDuration(eventType: string, outcome: string, durationMs: number): void {
+  outboxProcessingDurationMs.observe({
+    event_type: normalizeOutboxEventType(eventType),
+    outcome: allow(outcome, OUTCOMES),
+  }, durationMs);
+}
+
+export function setOutboxBacklog(count: number): void {
+  outboxBacklog.set(count);
+}
+
+export function setOutboxWorkerUp(up: boolean): void {
+  outboxWorkerUp.set(up ? 1 : 0);
+}
+
 export function getCounterValue(name: string, labels: Labels = {}): number {
   const counters: Record<string, Counter> = {
     http_requests_total: httpRequestsTotal,
@@ -326,6 +411,11 @@ export function getCounterValue(name: string, labels: Labels = {}): number {
     socket_connections_rejected_total: socketConnectionsRejectedTotal,
     socket_disconnects_total: socketDisconnectsTotal,
     socket_policy_failures_total: socketPolicyFailuresTotal,
+    outbox_events_claimed_total: outboxEventsClaimedTotal,
+    outbox_events_completed_total: outboxEventsCompletedTotal,
+    outbox_events_retryable_total: outboxEventsRetryableTotal,
+    outbox_events_terminal_total: outboxEventsTerminalTotal,
+    outbox_lease_recovered_total: outboxLeaseRecoveredTotal,
   };
   return counters[name]?.get(labels) ?? 0;
 }
@@ -336,6 +426,8 @@ export function getGaugeValue(name: string): number {
     http_requests_in_flight: httpRequestsInFlight,
     readiness_state: readinessState,
     socket_connections_active: socketConnectionsActive,
+    outbox_backlog: outboxBacklog,
+    outbox_worker_up: outboxWorkerUp,
   };
   return gauges[name]?.get() ?? 0;
 }
@@ -343,6 +435,7 @@ export function getGaugeValue(name: string): number {
 export function getHistogramCount(name: string, labels: Labels = {}): number {
   if (name === "http_request_duration_ms") return httpRequestDurationMs.getCount(labels);
   if (name === "dependency_request_duration_ms") return dependencyRequestDurationMs.getCount(labels);
+  if (name === "outbox_processing_duration_ms") return outboxProcessingDurationMs.getCount(labels);
   return 0;
 }
 
@@ -407,6 +500,14 @@ export function renderPrometheus(): string {
     ...renderCounter(socketDisconnectsTotal),
     ...renderCounter(socketPolicyFailuresTotal),
     ...renderGauge(socketConnectionsActive, socketCountProvider()),
+    ...renderCounter(outboxEventsClaimedTotal),
+    ...renderCounter(outboxEventsCompletedTotal),
+    ...renderCounter(outboxEventsRetryableTotal),
+    ...renderCounter(outboxEventsTerminalTotal),
+    ...renderCounter(outboxLeaseRecoveredTotal),
+    ...renderHistogram(outboxProcessingDurationMs),
+    ...renderGauge(outboxBacklog),
+    ...renderGauge(outboxWorkerUp),
   ].join("\n") + "\n";
 }
 
@@ -425,6 +526,14 @@ export function resetMetrics(): void {
   socketDisconnectsTotal.reset();
   socketPolicyFailuresTotal.reset();
   socketConnectionsActive.reset();
+  outboxEventsClaimedTotal.reset();
+  outboxEventsCompletedTotal.reset();
+  outboxEventsRetryableTotal.reset();
+  outboxEventsTerminalTotal.reset();
+  outboxLeaseRecoveredTotal.reset();
+  outboxProcessingDurationMs.reset();
+  outboxBacklog.reset();
+  outboxWorkerUp.reset();
 }
 
 export const METRIC_LABEL_CONTRACT = {
@@ -435,12 +544,20 @@ export const METRIC_LABEL_CONTRACT = {
   dependency_request_duration_ms: ["dependency"],
   socket_disconnects_total: ["reason_class"],
   socket_policy_failures_total: ["event", "code"],
+  outbox_events_claimed_total: ["event_type"],
+  outbox_events_completed_total: ["event_type"],
+  outbox_events_retryable_total: ["event_type", "failure_category"],
+  outbox_events_terminal_total: ["event_type", "failure_category"],
+  outbox_lease_recovered_total: ["event_type"],
+  outbox_processing_duration_ms: ["event_type", "outcome"],
   forbidden_label_names: [
     "userId",
     "requestId",
     "messageId",
     "conversationId",
     "communityId",
+    "eventId",
+    "aggregateId",
     "url",
     "nickname",
     "errorMessage",

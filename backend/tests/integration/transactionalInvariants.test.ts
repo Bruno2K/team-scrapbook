@@ -6,6 +6,9 @@ import { issueAccessToken } from "../../src/modules/identity/index.js";
 import { createMessageApplication } from "../../src/modules/messaging/application/messageApplication.js";
 import { createPrismaMessageRepository } from "../../src/modules/messaging/persistence/prismaMessageRepository.js";
 import { createPrismaRelationshipCommandRepository } from "../../src/modules/relationships/persistence/prismaRelationshipCommandRepository.js";
+import { processAvailableOutboxWork } from "../../src/platform/outbox/processor.js";
+import { readOutboxRuntimeConfig } from "../../src/platform/outbox/config.js";
+import { registerProductOutboxConsumers } from "../../src/registerOutboxConsumers.js";
 
 const prefix = `transactions_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
@@ -216,6 +219,11 @@ describe("Issue #34 transactional invariants", () => {
     expect([firstResponse.status, retryResponse.status].sort()).toEqual([200, 201]);
     expect(firstResponse.body.id).toBe(retryResponse.body.id);
     expect(await prisma.chatMessage.count({ where: { conversationId: conversation.id } })).toBe(1);
+    registerProductOutboxConsumers();
+    await processAvailableOutboxWork(prisma, {
+      workerId: "invariants-drain",
+      config: readOutboxRuntimeConfig({ batchSize: 20, leaseMs: 5_000, maxAttempts: 8 }),
+    });
     expect(await prisma.notification.count({
       where: {
         userId: second.id,
