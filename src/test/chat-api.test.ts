@@ -4,7 +4,6 @@ describe("chat HTTP idempotency", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.stubEnv("VITE_API_URL", "https://api.example.test");
-    localStorage.setItem("token", "session-token");
   });
 
   afterEach(() => {
@@ -20,6 +19,8 @@ describe("chat HTTP idempotency", () => {
         status: 200,
         headers: { "content-type": "application/json" },
       }));
+    const session = await import("@/auth/session");
+    session.setAccessToken("session-token");
     vi.stubGlobal("fetch", fetchMock);
     const { sendMessage } = await import("@/api/chat");
     const logicalAttempt = {

@@ -3,12 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { login } from "@/api/auth";
+import { useMeQueryKey } from "@/hooks/useUser";
 import { SCRAPS_QUERY_KEY } from "@/hooks/useScraps";
 import { FRIENDS_QUERY_KEY } from "@/hooks/useFriends";
 
 export default function Login() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const meKey = useMeQueryKey();
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +25,8 @@ export default function Login() {
     }
     setIsLoading(true);
     login({ nickname: n, password: p })
-      .then(() => {
+      .then((result) => {
+        queryClient.setQueryData(meKey, result.user);
         queryClient.invalidateQueries({ queryKey: SCRAPS_QUERY_KEY });
         queryClient.invalidateQueries({ queryKey: FRIENDS_QUERY_KEY });
         toast.success("Acesso autorizado. Bem-vindo ao campo!");

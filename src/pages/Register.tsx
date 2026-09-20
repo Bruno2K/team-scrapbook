@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { register } from "@/api/auth";
 import type { TF2Class } from "@/lib/types";
+import { useMeQueryKey } from "@/hooks/useUser";
 import { SCRAPS_QUERY_KEY } from "@/hooks/useScraps";
 import { FRIENDS_QUERY_KEY } from "@/hooks/useFriends";
 
@@ -15,6 +16,7 @@ const MAIN_CLASSES: TF2Class[] = [
 export default function Register() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const meKey = useMeQueryKey();
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
@@ -37,7 +39,8 @@ export default function Register() {
     }
     setIsLoading(true);
     register({ name: n, nickname: nick, password: p, team, mainClass })
-      .then(() => {
+      .then((result) => {
+        queryClient.setQueryData(meKey, result.user);
         queryClient.invalidateQueries({ queryKey: SCRAPS_QUERY_KEY });
         queryClient.invalidateQueries({ queryKey: FRIENDS_QUERY_KEY });
         toast.success("Conta criada! Bem-vindo ao campo.");

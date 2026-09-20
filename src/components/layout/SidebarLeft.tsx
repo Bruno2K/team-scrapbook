@@ -5,13 +5,19 @@ import { ProfileCard } from "@/components/profile/ProfileCard";
 import { ScrapMessage } from "@/components/scrapbook/ScrapMessage";
 
 export function SidebarLeft() {
-  const { user } = useUser();
+  const { user, isLoading } = useUser();
   const { scraps } = useScraps();
 
   return (
     <>
       <div className="flex-shrink-0 min-h-0 max-h-[100vh] overflow-hidden">
-        <ProfileCard user={user} />
+        {user ? (
+          <ProfileCard user={user} />
+        ) : (
+          <div className="tf-card p-4 text-sm text-muted-foreground">
+            {isLoading ? "Carregando perfil..." : "Sessão indisponível."}
+          </div>
+        )}
       </div>
 
       {/* Scrapbook: cabe na tela, sem scroll; ver todos em /scraps */}

@@ -34,6 +34,9 @@ describe("Auth", () => {
       expect(res.body.user).toHaveProperty("id");
       expect(res.body).toHaveProperty("token");
       expect(typeof res.body.token).toBe("string");
+      expect(res.headers["set-cookie"]).toEqual(
+        expect.arrayContaining([expect.stringMatching(/^refresh_token=.*HttpOnly/i)]),
+      );
     });
 
     it("returns 400 when nickname already exists", async () => {
@@ -69,6 +72,9 @@ describe("Auth", () => {
       expect(res.status).toBe(200);
       expect(res.body.user.nickname).toBe(testUser.nickname);
       expect(res.body).toHaveProperty("token");
+      expect(res.headers["set-cookie"]).toEqual(
+        expect.arrayContaining([expect.stringMatching(/^refresh_token=/)]),
+      );
     });
 
     it("returns 401 with wrong password", async () => {

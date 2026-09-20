@@ -1,15 +1,22 @@
 import type { User } from "@/lib/types";
-import { apiRequest, isApiConfigured } from "./client";
-
-const TOKEN_KEY = "token";
+import { apiRequest, isApiConfigured, renewAccessToken } from "./client";
+import {
+  clearAccessToken,
+  completeAuthBootstrap,
+  discardLegacyAccessTokenStorage,
+  getAccessToken,
+  getBootstrapState,
+  publishAuthEvent,
+  setAccessToken,
+} from "@/auth/session";
 
 export function getStoredToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return getAccessToken();
 }
 
 /** Decode JWT payload to get current user id (for UI only; backend verifies). */
 export function getCurrentUserId(): string | null {
-  const token = getStoredToken();
+  const token = getAccessToken();
   if (!token) return null;
   try {
     const parts = token.split(".");
@@ -24,11 +31,11 @@ export function getCurrentUserId(): string | null {
 }
 
 export function setStoredToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  setAccessToken(token);
 }
 
 export function clearStoredToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
+  clearAccessToken();
 }
 
 export interface LoginInput {
@@ -41,6 +48,12 @@ export interface AuthResponse {
   token: string;
 }
 
+function rememberAccessToken(token: string): void {
+  setAccessToken(token);
+  completeAuthBootstrap();
+  publishAuthEvent({ type: "session-refreshed" });
+}
+
 export async function login(input: LoginInput): Promise<AuthResponse> {
   if (!isApiConfigured()) {
     throw new Error("API não configurada. Defina VITE_API_URL no .env");
@@ -49,12 +62,21 @@ export async function login(input: LoginInput): Promise<AuthResponse> {
     method: "POST",
     body: JSON.stringify(input),
   });
-  setStoredToken(res.token);
+  rememberAccessToken(res.token);
   return res;
 }
 
-export function logout(): void {
-  clearStoredToken();
+export async function logout(): Promise<void> {
+  try {
+    if (isApiConfigured()) {
+      await apiRequest("/auth/logout", { method: "POST" });
+    }
+  } catch {
+    // Local session still clears so the UI cannot remain authenticated.
+  } finally {
+    clearAccessToken();
+    publishAuthEvent({ type: "logout" });
+  }
 }
 
 export interface RegisterInput {
@@ -73,6 +95,29 @@ export async function register(input: RegisterInput): Promise<AuthResponse> {
     method: "POST",
     body: JSON.stringify(input),
   });
-  setStoredToken(res.token);
+  rememberAccessToken(res.token);
   return res;
+}
+
+export async function recoverSessionFromCookie(): Promise<boolean> {
+  if (!isApiConfigured()) return false;
+  const token = await renewAccessToken();
+  return Boolean(token);
+}
+
+export async function bootstrapAuthSession(): Promise<"authenticated" | "unauthenticated"> {
+  if (getBootstrapState() === "ready") {
+    return getAccessToken() ? "authenticated" : "unauthenticated";
+  }
+  discardLegacyAccessTokenStorage();
+  if (!isApiConfigured()) {
+    completeAuthBootstrap();
+    return "unauthenticated";
+  }
+  const recovered = await recoverSessionFromCookie();
+  if (!recovered && !getAccessToken()) {
+    clearAccessToken();
+  }
+  completeAuthBootstrap();
+  return getAccessToken() ? "authenticated" : "unauthenticated";
 }
