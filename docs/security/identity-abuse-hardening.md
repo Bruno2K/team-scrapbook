@@ -52,13 +52,18 @@ has distributed abuse prevention or a complete security platform.
 
 ## Authentication contract
 
-- Ordinary HTTP accepts `Authorization: Bearer <access-token>` only.
+- Ordinary HTTP accepts `Authorization: Bearer <access-token>` only. The refresh cookie is not a
+  product-route credential.
 - Socket.io accepts the access token only through `handshake.auth.token`.
 - Steam callbacks accept only a short-lived token with purpose `steam-link`.
 - Access verification pins HS256, verifies expiration and a non-empty consistent subject/user ID,
   accepts pre-hardening `{ userId }` tokens for rollout compatibility, and resolves a current user.
+- Access JWTs issued after Issue #42 expire in 15 minutes. Browser clients recover via
+  `POST /auth/refresh` using an HttpOnly refresh cookie whose hash is stored in PostgreSQL.
+- Cookie-authorized endpoints are only `POST /auth/refresh` and `POST /auth/logout`. Both require an
+  exact allowed request Origin from the configured frontend-origin policy.
 - Authentication responses are stable and do not expose token contents, secrets, database errors, or
-  provider internals.
+  provider internals. Refresh tokens are never returned in JSON.
 
 ## Process-local abuse controls
 
@@ -75,8 +80,10 @@ scope for Issue #32.
 
 ## Remaining debt
 
-- Browser access tokens remain in `localStorage`; migration to hardened browser session storage,
-  OAuth/OIDC, MFA, and passkeys is deferred.
+- Ordinary access tokens are no longer stored in `localStorage`. Issue #42 uses an in-memory 15-minute
+  access JWT plus a PostgreSQL-backed HttpOnly refresh cookie. OAuth/OIDC, MFA, passkeys, refresh-token
+  rotation families, and production custom-API-domain cutover remain separate work. See
+  [ADR 0002](../adr/0002-browser-session-lifecycle.md).
 - Existing data disclosed before these checks cannot be recalled by an application-code change.
 - Process-local presence and Socket.io delivery remain single-process and are not distributed.
 - Comprehensive dependency remediation, CSP/security-header work, audit logging, observability,

@@ -1,37 +1,115 @@
+import {
+  clearAccessToken,
+  getAccessToken,
+  publishAuthEvent,
+  runExclusiveRefresh,
+  setAccessToken,
+} from "@/auth/session";
+
 const baseURL = import.meta.env.VITE_API_URL ?? "";
 
+const CREDENTIALED_AUTH_PATHS = new Set([
+  "/auth/login",
+  "/auth/register",
+  "/auth/refresh",
+  "/auth/logout",
+]);
+
 export function getAuthToken(): string | null {
-  return localStorage.getItem("token");
+  return getAccessToken();
+}
+
+function normalizePath(path: string): string {
+  return path.startsWith("/") ? path : `/${path}`;
+}
+
+function isCredentialedAuthPath(path: string): boolean {
+  return CREDENTIALED_AUTH_PATHS.has(normalizePath(path).split("?")[0] ?? path);
+}
+
+async function parseErrorMessage(res: Response): Promise<string> {
+  const body = await res.text();
+  let message = body;
+  try {
+    const json = JSON.parse(body) as { message?: string };
+    message = json.message ?? body;
+  } catch {
+    // use body as message
+  }
+  return message || `HTTP ${res.status}`;
+}
+
+async function requestAccessTokenRefresh(): Promise<string | null> {
+  if (!isApiConfigured()) return null;
+  const url = `${baseURL.replace(/\/$/, "")}/auth/refresh`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type");
+    if (!contentType?.includes("application/json")) return null;
+    const data = (await res.json()) as { token?: unknown };
+    return typeof data.token === "string" && data.token ? data.token : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function renewAccessToken(): Promise<string | null> {
+  return runExclusiveRefresh(async () => {
+    const token = await requestAccessTokenRefresh();
+    if (token) {
+      setAccessToken(token);
+      return token;
+    }
+    return null;
+  });
 }
 
 export async function apiRequest<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+): Promise<T> {
+  return apiRequestInternal(path, options, false);
+}
+
+async function apiRequestInternal<T>(
+  path: string,
+  options: RequestInit,
+  isRetry: boolean,
 ): Promise<T> {
   const url = `${baseURL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
-
-  const headers: HeadersInit = {
+  const credentialedAuth = isCredentialedAuthPath(path);
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
+    ...(options.headers as Record<string, string> | undefined),
   };
 
-  const token = getAuthToken();
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  if (!credentialedAuth) {
+    const token = getAuthToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetch(url, {
+    ...options,
+    headers,
+    credentials: credentialedAuth ? "include" : options.credentials,
+  });
+
+  if (res.status === 401 && !credentialedAuth && !isRetry) {
+    const renewed = await renewAccessToken();
+    if (renewed) {
+      return apiRequestInternal(path, options, true);
+    }
+    clearAccessToken();
+    publishAuthEvent({ type: "session-invalidated" });
+  }
 
   if (!res.ok) {
-    const body = await res.text();
-    let message = body;
-    try {
-      const json = JSON.parse(body) as { message?: string };
-      message = json.message ?? body;
-    } catch {
-      // use body as message
-    }
-    throw new Error(message || `HTTP ${res.status}`);
+    throw new Error(await parseErrorMessage(res));
   }
 
   const contentType = res.headers.get("content-type");

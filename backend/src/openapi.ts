@@ -147,7 +147,7 @@ export const openApiSpec = {
   servers: [{ url: "http://localhost:3000", description: "Desenvolvimento" }],
   tags: [
     { name: "Health", description: "Saúde e métricas do processo" },
-    { name: "Auth", description: "Registro e login" },
+    { name: "Auth", description: "Registro, login, refresh de access token e logout" },
     { name: "Users", description: "Perfil, relações e Steam" },
     { name: "Notifications", description: "Notificações do usuário autenticado" },
     { name: "Feed", description: "Transmissão de campo (feed)" },
@@ -241,7 +241,8 @@ export const openApiSpec = {
       post: {
         tags: ["Auth"],
         summary: "Registrar usuário",
-        description: "Cria um novo usuário. Retorna o usuário e um token JWT.",
+        description:
+          "Cria um novo usuário. JSON `token` is the short-lived access JWT (15 minutes). Also sets an HttpOnly `refresh_token` cookie on Path=/auth with a 7-day fixed TTL. The refresh token is never returned in the body. Login/register authenticate by credentials, not by an existing refresh cookie. Browsers should send credentials so the Set-Cookie is stored.",
         requestBody: jsonBody({
           type: "object",
           additionalProperties: false,
@@ -256,14 +257,24 @@ export const openApiSpec = {
         }),
         responses: {
           "201": {
-            description: "Usuário criado",
+            description: "Usuário criado. Short-lived access JWT in JSON; refresh session cookie in Set-Cookie.",
+            headers: {
+              "Set-Cookie": {
+                description:
+                  "HttpOnly host-only refresh_token cookie. Path=/auth; SameSite=Lax; Secure in production; Max-Age matches the 7-day refresh TTL. Does not authorize product routes.",
+                schema: { type: "string" },
+              },
+            },
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     user: { $ref: "#/components/schemas/User" },
-                    token: { type: "string", description: "JWT para Authorization" },
+                    token: {
+                      type: "string",
+                      description: "Short-lived HS256 access JWT for Authorization: Bearer. Not a refresh credential.",
+                    },
                   },
                 },
               },
@@ -277,7 +288,8 @@ export const openApiSpec = {
       post: {
         tags: ["Auth"],
         summary: "Login",
-        description: "Autentica por nickname e senha. Retorna o usuário e um token JWT.",
+        description:
+          "Autentica por nickname e senha. JSON `token` is the short-lived access JWT (15 minutes). Also sets an HttpOnly `refresh_token` cookie on Path=/auth with a 7-day fixed TTL. The refresh token is never returned in the body. This endpoint is credential authentication, not refresh-cookie authorization. Browsers should send credentials so the Set-Cookie is stored.",
         requestBody: jsonBody({
           type: "object",
           additionalProperties: false,
@@ -289,14 +301,24 @@ export const openApiSpec = {
         }),
         responses: {
           "200": {
-            description: "Login realizado",
+            description: "Login realizado. Short-lived access JWT in JSON; refresh session cookie in Set-Cookie.",
+            headers: {
+              "Set-Cookie": {
+                description:
+                  "HttpOnly host-only refresh_token cookie. Path=/auth; SameSite=Lax; Secure in production; Max-Age matches the 7-day refresh TTL. Does not authorize product routes.",
+                schema: { type: "string" },
+              },
+            },
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     user: { $ref: "#/components/schemas/User" },
-                    token: { type: "string" },
+                    token: {
+                      type: "string",
+                      description: "Short-lived HS256 access JWT for Authorization: Bearer. Not a refresh credential.",
+                    },
                   },
                 },
               },
@@ -304,6 +326,57 @@ export const openApiSpec = {
           },
           ...unauthorized,
           ...badRequest,
+        },
+      },
+    },
+    "/auth/refresh": {
+      post: {
+        tags: ["Auth"],
+        summary: "Renovar access token",
+        description:
+          "Cookie-authorized. Requires the HttpOnly refresh_token cookie and an exact allowed Origin from the configured frontend origin policy (SameSite=Lax + Origin). Resolves the current user through the identity boundary, rejects deleted and AI-managed users, and returns a new 15-minute access JWT. Does not rotate the refresh token in this version. The refresh token is never returned in JSON and never authorizes product routes.",
+        security: [{ refreshCookieAuth: [] }],
+        responses: {
+          "200": {
+            description: "New short-lived access JWT.",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["token"],
+                  properties: {
+                    token: {
+                      type: "string",
+                      description: "Short-lived HS256 access JWT for Authorization: Bearer.",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "401": { description: "Refresh cookie missing, unknown, expired, or revoked, or the user is deleted/AI-managed", ...errorMessage },
+          "403": { description: "Missing or disallowed Origin", ...errorMessage },
+        },
+      },
+    },
+    "/auth/logout": {
+      post: {
+        tags: ["Auth"],
+        summary: "Encerrar sessão",
+        description:
+          "Cookie-authorized. Requires an exact allowed Origin. If a refresh_token cookie is present, the matching refresh session is revoked. The cookie is cleared. Idempotent: missing or already-revoked sessions still return 204 after Origin validation. Does not require a bearer access token.",
+        security: [{ refreshCookieAuth: [] }],
+        responses: {
+          "204": {
+            description: "Refresh session revoked when present; refresh cookie cleared.",
+            headers: {
+              "Set-Cookie": {
+                description: "Clears the host-only refresh_token cookie on Path=/auth with matching Secure/SameSite attributes.",
+                schema: { type: "string" },
+              },
+            },
+          },
+          "403": { description: "Missing or disallowed Origin", ...errorMessage },
         },
       },
     },
@@ -932,7 +1005,14 @@ export const openApiSpec = {
         scheme: "bearer",
         bearerFormat: "JWT",
         description:
-          "Token retornado em /auth/register ou /auth/login. Envie somente no header Authorization; tokens de sessão em query string não são aceitos. Optional-auth GET routes omit this requirement.",
+          "Short-lived access JWT returned as JSON `token` from /auth/register, /auth/login, or /auth/refresh. TTL is 15 minutes. Send only in Authorization: Bearer; ordinary session tokens in query string are not accepted. The refresh cookie is not a substitute. Optional-auth GET routes omit this requirement.",
+      },
+      refreshCookieAuth: {
+        type: "apiKey",
+        in: "cookie",
+        name: "refresh_token",
+        description:
+          "HttpOnly refresh session cookie used only by POST /auth/refresh and POST /auth/logout. Path=/auth. Those cookie-authenticated POSTs also require an allowed Origin. Never send the refresh token in JSON or to JavaScript.",
       },
     },
     schemas: {

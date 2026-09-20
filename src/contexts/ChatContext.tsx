@@ -9,8 +9,9 @@ import {
 } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
-import { getStoredToken } from "@/api/auth";
 import { isApiConfigured } from "@/api/client";
+import { getAccessToken, subscribeAuth } from "@/auth/session";
+import { nextSocketLifecycleAction, socketAuth } from "@/auth/socketLifecycle";
 import type { ChatMessage, Conversation } from "@/lib/types";
 
 const baseURL = (import.meta.env.VITE_API_URL as string) ?? "";
@@ -68,60 +69,93 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isApiConfigured()) return;
-    const token = getStoredToken();
-    if (!token) {
+
+    const attachHandlers = (socket: Socket) => {
+      socket.on("connect", () => setSocketConnected(true));
+      socket.on("disconnect", () => setSocketConnected(false));
+      socket.on("message", (msg: ChatMessage) => {
+        setLastMessage(msg);
+        queryClient.invalidateQueries({ queryKey: CONVERSATIONS_QUERY_KEY });
+        queryClient.invalidateQueries({ queryKey: messagesQueryKey(msg.conversationId) });
+      });
+      socket.on("notification", () => {
+        queryClient.invalidateQueries({ queryKey: ["users", "me", "notifications"] });
+        try {
+          const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 800;
+          osc.type = "sine";
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 0.15);
+        } catch {
+          // ignore if AudioContext not supported
+        }
+      });
+      socket.on("typing", (payload: { conversationId: string; userId: string }) => {
+        setTypingConversationId(payload.conversationId);
+        setTypingUserId(payload.userId);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => {
+          setTypingUserId(null);
+          setTypingConversationId(null);
+          typingTimeoutRef.current = null;
+        }, 3000);
+      });
+    };
+
+    const disconnectSocket = () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       if (socketRef.current) {
+        socketRef.current.removeAllListeners();
         socketRef.current.disconnect();
         socketRef.current = null;
-        setSocketConnected(false);
       }
-      return;
-    }
-    const socket = io(socketOrigin, {
-      auth: { token },
-      transports: ["websocket", "polling"],
-    });
-    socketRef.current = socket;
-    socket.on("connect", () => setSocketConnected(true));
-    socket.on("disconnect", () => setSocketConnected(false));
-    socket.on("message", (msg: ChatMessage) => {
-      setLastMessage(msg);
-      queryClient.invalidateQueries({ queryKey: CONVERSATIONS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: messagesQueryKey(msg.conversationId) });
-    });
-    socket.on("notification", () => {
-      queryClient.invalidateQueries({ queryKey: ["users", "me", "notifications"] });
-      try {
-        const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 800;
-        osc.type = "sine";
-        gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
-      } catch {
-        // ignore if AudioContext not supported
-      }
-    });
-    socket.on("typing", (payload: { conversationId: string; userId: string }) => {
-      setTypingConversationId(payload.conversationId);
-      setTypingUserId(payload.userId);
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = setTimeout(() => {
-        setTypingUserId(null);
-        setTypingConversationId(null);
-        typingTimeoutRef.current = null;
-      }, 3000);
-    });
-    return () => {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      socket.disconnect();
-      socketRef.current = null;
       setSocketConnected(false);
+    };
+
+    const connectSocket = (token: string) => {
+      const socket = io(socketOrigin, {
+        auth: socketAuth(token),
+        transports: ["websocket", "polling"],
+        autoConnect: true,
+      });
+      socketRef.current = socket;
+      attachHandlers(socket);
+    };
+
+    const applyToken = (token: string | null) => {
+      const action = nextSocketLifecycleAction(
+        Boolean(socketRef.current),
+        Boolean(socketRef.current?.connected),
+        token,
+      );
+      if (action === "disconnect") {
+        disconnectSocket();
+        return;
+      }
+      if (action === "connect" && token) {
+        connectSocket(token);
+        return;
+      }
+      if (action === "update-auth" && token && socketRef.current) {
+        socketRef.current.auth = socketAuth(token);
+        if (!socketRef.current.connected) {
+          socketRef.current.connect();
+        }
+      }
+    };
+
+    applyToken(getAccessToken());
+    const unsubscribe = subscribeAuth(() => applyToken(getAccessToken()));
+
+    return () => {
+      unsubscribe();
+      disconnectSocket();
     };
   }, [queryClient]);
 

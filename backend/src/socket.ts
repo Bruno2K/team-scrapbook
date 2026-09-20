@@ -13,8 +13,7 @@ import {
   observeSocketRejected,
   setSocketCountProvider,
 } from "./platform/observability/index.js";
-
-const CORS_ORIGIN = process.env.CORS_ORIGIN ?? "http://localhost:8080";
+import { getConfiguredFrontendOrigins } from "./platform/frontendOrigin.js";
 
 export async function authenticateSocketToken(token: unknown): Promise<AuthenticatedActor | null> {
   if (typeof token !== "string" || !token.trim()) return null;
@@ -29,7 +28,7 @@ export async function authenticateSocketToken(token: unknown): Promise<Authentic
 export function setupSocket(httpServer: HttpServer): Server {
   const io = new Server(httpServer, {
     cors: {
-      origin: CORS_ORIGIN.split(",").map((o) => o.trim()),
+      origin: getConfiguredFrontendOrigins(),
       methods: ["GET", "POST"],
     },
   });

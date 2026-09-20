@@ -1,5 +1,5 @@
 import type { Attachment, AttachmentType } from "@/lib/types";
-import { apiRequest, getAuthToken, isApiConfigured } from "./client";
+import { apiRequest, getAuthToken, isApiConfigured, renewAccessToken } from "./client";
 
 export interface PresignResponse {
   uploadUrl: string;
@@ -37,16 +37,23 @@ export async function uploadFileToR2(
   const baseURL = (import.meta.env.VITE_API_URL as string) ?? "";
   const kindParam = kind === "avatar" ? "avatar" : kind === "chat" ? "chat" : kind;
   const url = `${baseURL.replace(/\/$/, "")}/upload/file?kind=${kindParam}`;
-  const token = getAuthToken();
-  const headers: HeadersInit = {
-    "X-Upload-Filename": file.name,
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  const send = async (token: string | null, isRetry: boolean): Promise<Response> => {
+    const headers: HeadersInit = {
+      "X-Upload-Filename": file.name,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+    const res = await fetch(url, {
+      method: "POST",
+      body: file,
+      headers,
+    });
+    if (res.status === 401 && !isRetry) {
+      const renewed = await renewAccessToken();
+      if (renewed) return send(renewed, true);
+    }
+    return res;
   };
-  const res = await fetch(url, {
-    method: "POST",
-    body: file,
-    headers,
-  });
+  const res = await send(getAuthToken(), false);
   if (!res.ok) {
     const body = await res.text();
     let message = body;

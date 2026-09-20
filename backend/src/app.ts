@@ -19,13 +19,15 @@ import {
   metricsHandler,
   unhandledErrorMiddleware,
 } from "./platform/observability/index.js";
+import { getConfiguredFrontendOrigins } from "./platform/frontendOrigin.js";
 
 const app = express();
 
 app.use(correlationMiddleware);
 app.use(httpObservabilityMiddleware);
 app.use(cors({
-  origin: process.env.CORS_ORIGIN ?? "http://localhost:8080",
+  origin: getConfiguredFrontendOrigins(),
+  credentials: true,
   exposedHeaders: ["X-Request-Id"],
 }));
 app.use(express.json());

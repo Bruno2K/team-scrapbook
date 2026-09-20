@@ -1,22 +1,14 @@
 import { type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
-import { logout, getStoredToken } from "@/api/auth";
+import { logout } from "@/api/auth";
+import { useAccessToken } from "@/auth/useAuthSession";
 import { useUnreadCount, useNotifications } from "@/hooks/useNotifications";
 import { ChatLauncher } from "@/components/chat/ChatLauncher";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { ChatMaximized } from "@/components/chat/ChatMaximized";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
-// #region agent log
-const _log = (loc: string, msg: string, data: Record<string, unknown>) => {
-  fetch("http://127.0.0.1:7243/ingest/a5d22442-9ad0-4754-8b54-cb093bb3d2cf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ location: loc, message: msg, data, timestamp: Date.now(), hypothesisId: "H3" }),
-  }).catch(() => {});
-};
-// #endregion
 
 interface MainLayoutProps {
   sidebarLeft: ReactNode;
@@ -27,8 +19,9 @@ interface MainLayoutProps {
 export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  _log("MainLayout.tsx:render", "MainLayout_mount", { path: location.pathname });
-  const hasToken = !!getStoredToken();
+  const queryClient = useQueryClient();
+  const accessToken = useAccessToken();
+  const hasToken = !!accessToken;
   const { unreadCount } = useUnreadCount({ enabled: hasToken });
   const { notifications: recentNotifications } = useNotifications({ limit: 10 }, { enabled: hasToken });
   const navItems = [
@@ -137,8 +130,10 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
               <button
                 type="button"
                 onClick={() => {
-                  logout();
-                  navigate("/login", { replace: true });
+                  void logout().finally(() => {
+                    queryClient.clear();
+                    navigate("/login", { replace: true });
+                  });
                 }}
                 className="px-3 py-1.5 rounded font-heading text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted transition-all border border-border hover:border-accent/50"
               >
@@ -175,7 +170,7 @@ export function MainLayout({ sidebarLeft, children, sidebarRight }: MainLayoutPr
       </div>
 
       {/* Authenticated chat widgets */}
-      {getStoredToken() && (
+      {hasToken && (
         <>
           <ChatLauncher />
           <ChatPanel />
