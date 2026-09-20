@@ -54,6 +54,7 @@ jobs:
       - run: npm ci
       - run: npm run db:generate
       - run: npm run architecture:check
+      - run: npm run contract:check
       - run: npm run typecheck
       - run: npm run test:unit
       - run: npm run build

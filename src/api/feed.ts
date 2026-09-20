@@ -42,7 +42,7 @@ export async function getPost(id: string): Promise<GetPostResponse | null> {
 
 export interface PostFeedInput {
   content: string;
-  type?: "post" | "achievement" | "community" | "scrap";
+  type?: "post" | "achievement";
   allowComments?: boolean;
   allowReactions?: boolean;
   attachments?: Attachment[];
