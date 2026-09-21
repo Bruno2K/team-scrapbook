@@ -55,7 +55,7 @@ describe("ChatProvider socket session", () => {
     session.setAccessToken("access-login");
     await waitFor(() => {
       expect(io).toHaveBeenCalledWith(
-        expect.any(String),
+        "https://api.example.test",
         expect.objectContaining({ auth: { token: "access-login" } }),
       );
     });

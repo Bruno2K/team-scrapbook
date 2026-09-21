@@ -1,8 +1,8 @@
 # ADR: In-memory access JWT and PostgreSQL refresh cookie
 
-**Owning issue:** [GitHub Issue #42](https://github.com/Bruno2K/team-scrapbook/issues/42)
+**Owning issue:** [GitHub Issue #42](https://github.com/Bruno2K/team-scrapbook/issues/42); transport amendment [GitHub Issue #44](https://github.com/Bruno2K/team-scrapbook/issues/44)
 
-**Status:** Accepted
+**Status:** Accepted (amended by Issue #44)
 
 ## Context
 
@@ -91,7 +91,50 @@ registrable parent as the production frontend. This ADR does not configure that 
 
 ## Follow-up implications
 
-- Attach and verify the production custom API domain only after a separate human gate.
+- The original follow-up was to attach and verify a production custom API domain only after a
+  separate human gate. Issue #44 records that this path was blocked by the current Railway plan and
+  replaces it for production transport. See Amendment below.
 - Decide at cutover whether to rotate `JWT_SECRET` to invalidate leftover 7-day access JWTs.
 - Do not add refresh-token families, device session UI, Redis, or OAuth unless a later issue owns
   that scope.
+
+## Amendment (Issue #44)
+
+This amendment does not change the Issue #42 credential model. It changes only how browser auth
+HTTP reaches Railway.
+
+### Historical production direction
+
+Issue #42 / this ADR originally approved a later human-gated same-site custom Railway API hostname
+under the same registrable parent as the production frontend. `SameSite=None` remained rejected as
+the primary design. That custom-domain cutover was not executed.
+
+### Operational evidence
+
+During the approved production cutover attempt, Railway rejected the requested custom domain because
+the current plan does not permit another custom domain. No Railway plan upgrade, DNS change,
+provider-variable change, production deploy, or secret rotation was performed from that attempt.
+
+### Approved replacement transport (Bruno, Option 2)
+
+Use the Vercel frontend origin as a same-origin gateway only for `/auth/login`, `/auth/register`,
+`/auth/refresh`, and `/auth/logout`. Vercel rewrites those paths to the existing Railway backend.
+Product HTTP and Socket.io stay direct to Railway with the in-memory Bearer access JWT.
+
+| Traffic | Browser target | Upstream | Credential |
+|---|---|---|---|
+| login/register | same-origin `/auth/*` | Vercel rewrite → Railway | password JSON + refresh Set-Cookie |
+| refresh/logout | same-origin `/auth/*` | Vercel rewrite → Railway | HttpOnly refresh cookie |
+| product HTTP | `VITE_API_URL` | Railway direct | Bearer access JWT |
+| Socket.io | `VITE_API_URL` | Railway direct | `handshake.auth.token` |
+
+### Unchanged security model
+
+- 15-minute access JWT in SPA memory only
+- HttpOnly refresh cookie, host-only, `SameSite=Lax`, `Path=/auth`, `Secure` in production
+- PostgreSQL hashed `RefreshSession`
+- CSRF remains `SameSite=Lax` + exact browser `Origin` validation
+- No `SameSite=None`, no `Domain` attribute, no refresh token in JavaScript
+- Do not replace Origin verification with `X-Forwarded-Host`, `Host`, or Vercel-specific headers
+
+If Vercel strips or rewrites browser `Origin`, stop and report rather than weakening CSRF.
