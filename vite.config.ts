@@ -48,6 +48,12 @@ export default defineConfig(({ mode }) => {
       hmr: {
         overlay: false,
       },
+      proxy: {
+        "/auth": {
+          target: "http://localhost:3000",
+          changeOrigin: true,
+        },
+      },
     },
     plugins: [react(), releaseMetadata(environment), mode === "development" && componentTagger()].filter(Boolean),
     resolve: {

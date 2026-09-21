@@ -128,6 +128,12 @@ describe("in-memory auth session", () => {
     await expect(auth.bootstrapAuthSession()).resolves.toBe("authenticated");
     expect(session.getAccessToken()).toBe("boot-token");
     expect(localStorage.getItem("token")).toBeNull();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/auth/refresh");
+    expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain("api.example.test");
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      method: "POST",
+      credentials: "include",
+    }));
 
     session.resetAuthSessionForTests();
     await expect(auth.bootstrapAuthSession()).resolves.toBe("unauthenticated");

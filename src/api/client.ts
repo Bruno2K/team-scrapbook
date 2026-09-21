@@ -23,8 +23,20 @@ function normalizePath(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
+function authPathname(path: string): string {
+  return normalizePath(path).split("?")[0] ?? path;
+}
+
 function isCredentialedAuthPath(path: string): boolean {
-  return CREDENTIALED_AUTH_PATHS.has(normalizePath(path).split("?")[0] ?? path);
+  return CREDENTIALED_AUTH_PATHS.has(authPathname(path));
+}
+
+function resolveRequestUrl(path: string): string {
+  const normalized = normalizePath(path);
+  if (isCredentialedAuthPath(normalized)) {
+    return normalized;
+  }
+  return `${baseURL.replace(/\/$/, "")}${normalized}`;
 }
 
 async function parseErrorMessage(res: Response): Promise<string> {
@@ -41,9 +53,8 @@ async function parseErrorMessage(res: Response): Promise<string> {
 
 async function requestAccessTokenRefresh(): Promise<string | null> {
   if (!isApiConfigured()) return null;
-  const url = `${baseURL.replace(/\/$/, "")}/auth/refresh`;
   try {
-    const res = await fetch(url, {
+    const res = await fetch("/auth/refresh", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -81,7 +92,7 @@ async function apiRequestInternal<T>(
   options: RequestInit,
   isRetry: boolean,
 ): Promise<T> {
-  const url = `${baseURL.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  const url = resolveRequestUrl(path);
   const credentialedAuth = isCredentialedAuthPath(path);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -96,7 +107,7 @@ async function apiRequestInternal<T>(
   const res = await fetch(url, {
     ...options,
     headers,
-    credentials: credentialedAuth ? "include" : options.credentials,
+    credentials: credentialedAuth ? "include" : (options.credentials ?? "omit"),
   });
 
   if (res.status === 401 && !credentialedAuth && !isRetry) {
