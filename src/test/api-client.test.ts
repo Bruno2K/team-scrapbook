@@ -82,7 +82,7 @@ describe("API client", () => {
     const { session, client } = await loadClient();
     session.setAccessToken("expired-token");
     let refreshCalls = 0;
-    const fetchMock = vi.fn(async (url: string) => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
       if (String(url).includes("/auth/refresh")) {
         refreshCalls += 1;
         return new Response(JSON.stringify({ token: "fresh-token" }), {
@@ -110,7 +110,7 @@ describe("API client", () => {
   it("sends cookies on login/register/logout and omits bearer on those paths", async () => {
     const { session, client } = await loadClient();
     session.setAccessToken("session-token");
-    const fetchMock = vi.fn(async (url: string) => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
       if (String(url) === "/auth/logout") {
         return new Response(null, { status: 204 });
       }
