@@ -66,6 +66,11 @@ function looksProtected(result) {
   );
 }
 
+function headerValue(value) {
+  if (Array.isArray(value)) return value[0];
+  return value ?? null;
+}
+
 function isSpaDocument(body) {
   return /team-scrapbook-app|team-scrapbook-frontend/i.test(body);
 }
@@ -291,12 +296,14 @@ export async function proveExternalRewrite(previewUrl, extraHeaders = {}) {
     echoJson = {};
   }
   const echoedHeaders = echoJson.headers ?? {};
+  const echoedOrigin = headerValue(echoedHeaders.Origin ?? echoedHeaders.origin);
+  const echoedCookie = headerValue(echoedHeaders.Cookie ?? echoedHeaders.cookie);
   live.externalEcho = {
     status: echo.status,
     contentType: echo.contentType,
     cache: echo.cache,
-    origin: echoedHeaders.Origin ?? echoedHeaders.origin ?? null,
-    cookie: echoedHeaders.Cookie ?? echoedHeaders.cookie ?? null,
+    origin: echoedOrigin,
+    cookieForwarded: String(echoedCookie ?? "").includes("refresh_token=synthetic-preview-proof"),
     json: echoJson.json ?? null,
     spa: isSpaDocument(echo.body),
     protected: looksProtected(echo),
@@ -308,12 +315,12 @@ export async function proveExternalRewrite(previewUrl, extraHeaders = {}) {
   assert(!isSpaDocument(echo.body), "external echo fell through to the SPA", failures);
   assert(echo.status === 200, `external echo status ${echo.status}`, failures);
   assert(
-    (echoedHeaders.Origin ?? echoedHeaders.origin) === origin,
-    `external rewrite Origin ${echoedHeaders.Origin ?? echoedHeaders.origin} !== ${origin}`,
+    echoedOrigin === origin,
+    `external rewrite Origin ${echoedOrigin} !== ${origin}`,
     failures,
   );
   assert(
-    String(echoedHeaders.Cookie ?? echoedHeaders.cookie ?? "").includes(cookie),
+    String(echoedCookie ?? "").includes(cookie),
     "external rewrite Cookie was not forwarded",
     failures,
   );
