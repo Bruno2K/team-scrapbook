@@ -2,7 +2,7 @@
  * Disposable auth-proxy echo for Issue #44 transport proof.
  * It never talks to Railway or creates RefreshSession rows.
  */
-const PROOF_COOKIE_NAME = "refresh_token";
+const PROOF_COOKIE_NAME = "auth_proxy_proof";
 const PROOF_COOKIE_VALUE = "vercel-auth-proxy-proof";
 const PROOF_COOKIE_ATTRS = "HttpOnly; Secure; SameSite=Lax; Path=/auth";
 
@@ -37,6 +37,12 @@ function requestUrl(request) {
   return new URL(request.url ?? "/", "http://localhost");
 }
 
+function sanitizedCookie(cookie) {
+  if (!cookie) return null;
+  const kept = cookie.split(";").map((part) => part.trim()).filter((part) => part && !/^_vercel/i.test(part));
+  return kept.length > 0 ? kept.join("; ") : null;
+}
+
 function modeOf(request) {
   const url = requestUrl(request);
   const queryMode = url.searchParams.get("mode");
@@ -63,7 +69,7 @@ export default async function handler(request, response) {
     ? { raw: "", json: null }
     : await readJsonBody(request);
   const origin = typeof request.headers.origin === "string" ? request.headers.origin : null;
-  const cookie = typeof request.headers.cookie === "string" ? request.headers.cookie : null;
+  const cookie = sanitizedCookie(typeof request.headers.cookie === "string" ? request.headers.cookie : null);
   const echo = {
     ok: true,
     service: "team-scrapbook-auth-proxy-echo",

@@ -10,6 +10,39 @@
       "destination": "https://dazzling-encouragement-production-fd0f.up.railway.app/auth/:path*"
     },
     {
+      "source": "/__auth-proxy-proof/echo",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-team-scrapbook-auth-proxy-proof",
+          "value": "1"
+        }
+      ],
+      "destination": "https://httpbingo.org/anything"
+    },
+    {
+      "source": "/__auth-proxy-proof/set-cookie",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-team-scrapbook-auth-proxy-proof",
+          "value": "1"
+        }
+      ],
+      "destination": "https://httpbingo.org/response-headers?set-cookie=auth_proxy_proof%3Dvercel-external-rewrite%3B%20HttpOnly%3B%20Secure%3B%20SameSite%3DLax%3B%20Path%3D%2Fauth"
+    },
+    {
+      "source": "/__auth-proxy-proof/no-content",
+      "has": [
+        {
+          "type": "header",
+          "key": "x-team-scrapbook-auth-proxy-proof",
+          "value": "1"
+        }
+      ],
+      "destination": "https://httpbingo.org/status/204"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
@@ -17,6 +50,27 @@
   "headers": [
     {
       "source": "/auth/:path*",
+      "headers": [
+        {
+          "key": "x-vercel-enable-rewrite-caching",
+          "value": "0"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, private"
+        },
+        {
+          "key": "CDN-Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Vercel-CDN-Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
+    {
+      "source": "/__auth-proxy-proof/:path*",
       "headers": [
         {
           "key": "x-vercel-enable-rewrite-caching",

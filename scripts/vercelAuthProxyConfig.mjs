@@ -36,6 +36,16 @@ export function inspectVercelAuthProxyConfig(vercelJsonPath) {
   if (missingHeaders.length > 0) {
     problems.push(`missing auth no-cache headers: ${missingHeaders.join(", ")}`);
   }
+  if (spaFallbackIndex !== rewrites.length - 1) {
+    problems.push("SPA fallback is not the last rewrite");
+  }
+  const extraAuthRewrites = rewrites.filter((rule) => rule.source.startsWith("/auth") && rule.source !== "/auth/:path*");
+  if (extraAuthRewrites.length > 0) problems.push("unexpected extra /auth rewrite");
+  if (rewrites.some((rule) => rule.source.includes("socket.io"))) problems.push("socket.io rewrite present");
+  const proofEcho = rewrites.find((rule) => rule.source === "/__auth-proxy-proof/echo");
+  if (!proofEcho || !String(proofEcho.destination).startsWith("https://httpbingo.org/")) {
+    problems.push("missing disposable external echo rewrite");
+  }
   if (vercel.buildCommand !== "npm run build") problems.push("buildCommand changed");
   if (vercel.outputDirectory !== "dist") problems.push("outputDirectory changed");
   if (vercel.installCommand !== "npm install") problems.push("installCommand changed");

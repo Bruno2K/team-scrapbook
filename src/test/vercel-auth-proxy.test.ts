@@ -26,7 +26,9 @@ describe("Vercel auth proxy routing", () => {
     );
 
     expect(authRewriteIndex).toBe(0);
-    expect(spaFallbackIndex).toBeGreaterThan(authRewriteIndex);
+    expect(spaFallbackIndex).toBe(vercel.rewrites.length - 1);
+    expect(vercel.rewrites.some((rule) => rule.source === "/__auth-proxy-proof/echo")).toBe(true);
+    expect(vercel.rewrites.find((rule) => rule.source === "/__auth-proxy-proof/echo")?.destination).toMatch(/^https:\/\/httpbingo\.org\//);
     expect(vercel.rewrites[authRewriteIndex]?.destination).toBe(railwayAuthDestination);
     expect(headerMap).toMatchObject({
       "x-vercel-enable-rewrite-caching": "0",

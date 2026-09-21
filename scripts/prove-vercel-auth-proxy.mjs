@@ -26,12 +26,14 @@ function parsePreviewArgs(argv) {
     previewUrl: process.env.AUTH_PROXY_PROOF_URL,
     shareUrl: process.env.AUTH_PROXY_PROOF_SHARE_URL,
     echoUrl: process.env.AUTH_PROXY_ECHO_URL,
+    cookie: process.env.AUTH_PROXY_PROOF_COOKIE,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const current = argv[index];
     if (current === "--preview-url") args.previewUrl = argv[index + 1];
     if (current === "--share-url") args.shareUrl = argv[index + 1];
     if (current === "--echo-url") args.echoUrl = argv[index + 1];
+    if (current === "--cookie") args.cookie = argv[index + 1];
   }
   return args;
 }
@@ -55,11 +57,17 @@ function assert(condition, message, failures) {
 }
 
 function looksProtected(result) {
-  return htmlLike(result.body) && (
+  const body = result.body ?? "";
+  if (/Protected deployment/i.test(body)) return true;
+  return htmlLike(body) && (
     result.status === 401
     || result.status === 403
-    || /authentication required|vercel.*login|deployment protection/i.test(result.body)
+    || /authentication required|vercel.*login|deployment protection/i.test(body)
   );
+}
+
+function isSpaDocument(body) {
+  return /team-scrapbook-app|team-scrapbook-frontend/i.test(body);
 }
 
 function echoModeUrl(echoUrl, mode) {
@@ -68,18 +76,23 @@ function echoModeUrl(echoUrl, mode) {
   return url.toString();
 }
 
-export async function proveEchoTransport(echoUrl, origin = "https://preview.example.test") {
+function mergeCookie(left, right) {
+  return [left, right].filter(Boolean).join("; ");
+}
+
+export async function proveEchoTransport(echoUrl, origin = "https://preview.example.test", extraHeaders = {}) {
   const failures = [];
   const cookie = "refresh_token=synthetic-preview-proof";
   const live = {};
-
+  const requestHeaders = {
+    Origin: origin,
+    "Content-Type": "application/json",
+    ...extraHeaders,
+    Cookie: mergeCookie(extraHeaders.Cookie, cookie),
+  };
   const echoLogin = await fetchProof(echoModeUrl(echoUrl, "login"), {
     method: "POST",
-    headers: {
-      Origin: origin,
-      "Content-Type": "application/json",
-      Cookie: cookie,
-    },
+    headers: requestHeaders,
     body: JSON.stringify({ probe: "login-body" }),
     redirect: "manual",
   });
@@ -103,11 +116,11 @@ export async function proveEchoTransport(echoUrl, origin = "https://preview.exam
   assert(echoLogin.status === 200, `echo login status ${echoLogin.status}`, failures);
   assert(echoLogin.contentType.includes("application/json"), `echo login content-type ${echoLogin.contentType}`, failures);
   assert(echoJson.origin === origin, `echo origin ${echoJson.origin} !== ${origin}`, failures);
-  assert(echoJson.cookie === cookie, `echo cookie ${echoJson.cookie}`, failures);
+  assert(String(echoJson.cookie ?? "").includes(cookie), `echo cookie ${echoJson.cookie}`, failures);
   assert(echoJson.body?.probe === "login-body", "echo POST body was not forwarded", failures);
   assert(
-    echoLogin.setCookie.some((value) => value.startsWith("refresh_token=")),
-    "echo Set-Cookie missing refresh_token",
+    echoLogin.setCookie.some((value) => value.startsWith("auth_proxy_proof=")),
+    "echo Set-Cookie missing auth_proxy_proof",
     failures,
   );
   assert(echoLogin.setCookie.some((value) => /HttpOnly/i.test(value)), "echo Set-Cookie missing HttpOnly", failures);
@@ -118,11 +131,7 @@ export async function proveEchoTransport(echoUrl, origin = "https://preview.exam
 
   const echoRefresh = await fetchProof(echoModeUrl(echoUrl, "refresh"), {
     method: "POST",
-    headers: {
-      Origin: origin,
-      "Content-Type": "application/json",
-      Cookie: cookie,
-    },
+    headers: requestHeaders,
     body: "{}",
     redirect: "manual",
   });
@@ -137,15 +146,12 @@ export async function proveEchoTransport(echoUrl, origin = "https://preview.exam
     origin: refreshJson.origin ?? null,
     cookie: refreshJson.cookie ?? null,
   };
-  assert(refreshJson.cookie === cookie, "echo refresh Cookie was not forwarded", failures);
+  assert(String(refreshJson.cookie ?? "").includes(cookie), "echo refresh Cookie was not forwarded", failures);
   assert(refreshJson.origin === origin, "echo refresh Origin was not forwarded", failures);
 
   const echoLogout = await fetchProof(echoModeUrl(echoUrl, "logout"), {
     method: "POST",
-    headers: {
-      Origin: origin,
-      Cookie: cookie,
-    },
+    headers: requestHeaders,
     redirect: "manual",
   });
   live.echoLogout = {
@@ -156,7 +162,7 @@ export async function proveEchoTransport(echoUrl, origin = "https://preview.exam
   };
   assert(echoLogout.status === 204, `echo logout status ${echoLogout.status}`, failures);
   assert(
-    echoLogout.setCookie.some((value) => /refresh_token=;/i.test(value) || /Max-Age=0/i.test(value)),
+    echoLogout.setCookie.some((value) => /auth_proxy_proof=;/i.test(value) || /Max-Age=0/i.test(value)),
     "echo logout did not clear Set-Cookie",
     failures,
   );
@@ -164,19 +170,21 @@ export async function proveEchoTransport(echoUrl, origin = "https://preview.exam
   return { ok: failures.length === 0, failures, live };
 }
 
-export async function provePreviewAuthRewrite(previewUrl) {
+export async function provePreviewAuthRewrite(previewUrl, extraHeaders = {}) {
   const failures = [];
   const live = {};
   const base = previewUrl.replace(/\/+$/, "");
   const origin = new URL(base).origin;
   const cookie = "refresh_token=synthetic-preview-proof";
+  const headers = { ...extraHeaders };
 
   const spa = await fetchProof(`${base}/auth/refresh`, {
     method: "POST",
     headers: {
       Origin: origin,
       "Content-Type": "application/json",
-      Cookie: cookie,
+      ...headers,
+      Cookie: mergeCookie(headers.Cookie, cookie),
     },
     body: "{}",
     redirect: "manual",
@@ -187,6 +195,7 @@ export async function provePreviewAuthRewrite(previewUrl) {
     cache: spa.cache,
     cacheControl: spa.cacheControl,
     html: htmlLike(spa.body),
+    spa: isSpaDocument(spa.body),
     protected: looksProtected(spa),
     bodyPreview: spa.body.slice(0, 180),
   };
@@ -194,9 +203,9 @@ export async function provePreviewAuthRewrite(previewUrl) {
     failures.push("Vercel Deployment Protection intercepted /auth/refresh; use an authenticated preview or share URL");
     return { ok: false, failures, live };
   }
-  assert(!htmlLike(spa.body), "/auth/refresh returned SPA HTML", failures);
-  assert(!/index\.html/i.test(spa.body), "/auth/refresh looked like the SPA fallback", failures);
-  assert(spa.status !== 200 || !spa.contentType.includes("text/html"), "/auth/refresh status/content-type looks like SPA", failures);
+  assert(!isSpaDocument(spa.body), "/auth/refresh returned the SPA document", failures);
+  const refreshReachedUpstream = spa.status === 401 || spa.status === 403 || spa.status === 404 || /Cannot POST \/auth\/refresh/i.test(spa.body);
+  assert(refreshReachedUpstream, "/auth/refresh did not reach an upstream auth handler", failures);
 
   const loginBody = { nickname: "issue-44-proxy-proof-invalid", password: "not-a-real-password" };
   const login = await fetchProof(`${base}/auth/login`, {
@@ -204,6 +213,7 @@ export async function provePreviewAuthRewrite(previewUrl) {
     headers: {
       Origin: origin,
       "Content-Type": "application/json",
+      ...headers,
     },
     body: JSON.stringify(loginBody),
     redirect: "manual",
@@ -214,12 +224,14 @@ export async function provePreviewAuthRewrite(previewUrl) {
     cache: login.cache,
     cacheControl: login.cacheControl,
     html: htmlLike(login.body),
+    spa: isSpaDocument(login.body),
     bodyPreview: login.body.slice(0, 180),
   };
-  assert(!htmlLike(login.body), "/auth/login returned SPA HTML", failures);
+  assert(!isSpaDocument(login.body), "/auth/login returned the SPA document", failures);
+  assert(!looksProtected(login), "Vercel Deployment Protection intercepted /auth/login", failures);
   assert(
-    login.body.includes("inválid") || login.body.includes("invalid") || login.status === 401 || login.status === 400,
-    "/auth/login POST body did not appear to reach an auth handler",
+    /inv[aá]lid/i.test(login.body) && login.status === 401,
+    "/auth/login POST body did not reach Railway login",
     failures,
   );
 
@@ -228,6 +240,7 @@ export async function provePreviewAuthRewrite(previewUrl) {
     headers: {
       Origin: origin,
       "Content-Type": "application/json",
+      ...headers,
     },
     body: JSON.stringify(loginBody),
     redirect: "manual",
@@ -240,13 +253,113 @@ export async function provePreviewAuthRewrite(previewUrl) {
   assert(!/HIT/i.test(login.cache), `first /auth/login was a CDN HIT (${login.cache})`, failures);
   assert(!/HIT/i.test(loginAgain.cache), `repeated /auth/login was a CDN HIT (${loginAgain.cache})`, failures);
 
+  const unknown = await fetchProof(`${base}/this-is-not-a-real-route`, {
+    method: "GET",
+    headers,
+    redirect: "manual",
+  });
+  live.spaFallback = { status: unknown.status, spa: isSpaDocument(unknown.body) };
+  assert(isSpaDocument(unknown.body), "unknown path did not fall through to the SPA", failures);
+
   return { ok: failures.length === 0, failures, live };
 }
 
-export async function proveVercelAuthProxy({ previewUrl, shareUrl, echoUrl } = {}) {
+export async function proveExternalRewrite(previewUrl, extraHeaders = {}) {
+  const failures = [];
+  const live = {};
+  const base = previewUrl.replace(/\/+$/, "");
+  const origin = new URL(base).origin;
+  const cookie = "refresh_token=synthetic-preview-proof";
+  const proofHeaders = {
+    Origin: origin,
+    "Content-Type": "application/json",
+    "x-team-scrapbook-auth-proxy-proof": "1",
+    ...extraHeaders,
+    Cookie: mergeCookie(extraHeaders.Cookie, cookie),
+  };
+
+  const echo = await fetchProof(`${base}/__auth-proxy-proof/echo`, {
+    method: "POST",
+    headers: proofHeaders,
+    body: JSON.stringify({ probe: "login-body" }),
+    redirect: "manual",
+  });
+  let echoJson = {};
+  try {
+    echoJson = JSON.parse(echo.body);
+  } catch {
+    echoJson = {};
+  }
+  const echoedHeaders = echoJson.headers ?? {};
+  live.externalEcho = {
+    status: echo.status,
+    contentType: echo.contentType,
+    cache: echo.cache,
+    origin: echoedHeaders.Origin ?? echoedHeaders.origin ?? null,
+    cookie: echoedHeaders.Cookie ?? echoedHeaders.cookie ?? null,
+    json: echoJson.json ?? null,
+    spa: isSpaDocument(echo.body),
+    protected: looksProtected(echo),
+  };
+  if (looksProtected(echo)) {
+    failures.push("Vercel Deployment Protection intercepted /__auth-proxy-proof/echo");
+    return { ok: false, failures, live };
+  }
+  assert(!isSpaDocument(echo.body), "external echo fell through to the SPA", failures);
+  assert(echo.status === 200, `external echo status ${echo.status}`, failures);
+  assert(
+    (echoedHeaders.Origin ?? echoedHeaders.origin) === origin,
+    `external rewrite Origin ${echoedHeaders.Origin ?? echoedHeaders.origin} !== ${origin}`,
+    failures,
+  );
+  assert(
+    String(echoedHeaders.Cookie ?? echoedHeaders.cookie ?? "").includes(cookie),
+    "external rewrite Cookie was not forwarded",
+    failures,
+  );
+  assert(echoJson.json?.probe === "login-body", "external rewrite POST body was not forwarded", failures);
+  assert(!/HIT/i.test(echo.cache), `external echo was a CDN HIT (${echo.cache})`, failures);
+
+  const setCookie = await fetchProof(`${base}/__auth-proxy-proof/set-cookie`, {
+    method: "GET",
+    headers: proofHeaders,
+    redirect: "manual",
+  });
+  live.externalSetCookie = {
+    status: setCookie.status,
+    setCookie: setCookie.setCookie,
+    cache: setCookie.cache,
+  };
+  assert(
+    setCookie.setCookie.some((value) => /auth_proxy_proof=/i.test(value)),
+    "external rewrite Set-Cookie missing auth_proxy_proof",
+    failures,
+  );
+  assert(setCookie.setCookie.some((value) => /HttpOnly/i.test(value)), "external rewrite Set-Cookie missing HttpOnly", failures);
+  assert(setCookie.setCookie.some((value) => /SameSite=Lax/i.test(value)), "external rewrite Set-Cookie missing SameSite=Lax", failures);
+  assert(setCookie.setCookie.some((value) => /Path=\/auth/i.test(value)), "external rewrite Set-Cookie missing Path=/auth", failures);
+  assert(setCookie.setCookie.every((value) => !/Domain=/i.test(value)), "external rewrite Set-Cookie unexpectedly set Domain", failures);
+
+  const noContent = await fetchProof(`${base}/__auth-proxy-proof/no-content`, {
+    method: "GET",
+    headers: proofHeaders,
+    redirect: "manual",
+  });
+  live.externalNoContent = {
+    status: noContent.status,
+    setCookie: noContent.setCookie,
+    cache: noContent.cache,
+  };
+  assert(noContent.status === 204, `external rewrite 204 became ${noContent.status}`, failures);
+
+  return { ok: failures.length === 0, failures, live };
+}
+
+export async function proveVercelAuthProxy({ previewUrl, shareUrl, echoUrl, cookie } = {}) {
   const inspection = inspectVercelAuthProxyConfig(join(root, "vercel.json"));
   const failures = inspection.problems.map((problem) => `config: ${problem}`);
   const evidence = { config: inspection, live: {} };
+  const extraHeaders = cookie ? { Cookie: cookie } : {};
 
   if (echoUrl) {
     const echo = await proveEchoTransport(echoUrl, previewUrl ? new URL(previewUrl).origin : "https://preview.example.test");
@@ -255,11 +368,14 @@ export async function proveVercelAuthProxy({ previewUrl, shareUrl, echoUrl } = {
   }
 
   if (previewUrl) {
-    const rewrite = await provePreviewAuthRewrite(previewUrl);
+    const rewrite = await provePreviewAuthRewrite(previewUrl, extraHeaders);
     evidence.live.preview = rewrite.live;
     failures.push(...rewrite.failures.map((item) => `preview: ${item}`));
+    const external = await proveExternalRewrite(previewUrl, extraHeaders);
+    evidence.live.external = external.live;
+    failures.push(...external.failures.map((item) => `external: ${item}`));
     if (!echoUrl) {
-      const echo = await proveEchoTransport(`${previewUrl.replace(/\/+$/, "")}/api/auth-proxy-echo`, new URL(previewUrl).origin);
+      const echo = await proveEchoTransport(`${previewUrl.replace(/\/+$/, "")}/api/auth-proxy-echo`, new URL(previewUrl).origin, extraHeaders);
       evidence.live.echo = echo.live;
       failures.push(...echo.failures.map((item) => `echo: ${item}`));
     }
@@ -270,7 +386,7 @@ export async function proveVercelAuthProxy({ previewUrl, shareUrl, echoUrl } = {
   evidence.note = [
     "Live /auth/* checks use the committed Railway rewrite and must not create production sessions.",
     "Invalid login credentials and synthetic cookies only.",
-    "Cookie/Set-Cookie/Origin attribute proof uses the disposable auth-proxy-echo upstream, not production login.",
+    "Cookie/Set-Cookie/Origin forwarding through Vercel external rewrites is proven on header-gated /__auth-proxy-proof/* to httpbingo, not by creating production sessions.",
   ];
   return { ok: failures.length === 0, failures, evidence };
 }
